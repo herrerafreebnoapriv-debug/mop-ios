@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 连接测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>API 连接诊断工具</h1>
+    
+    <div class="test-section">
+        <h2>环境信息</h2>
+        <div id="env-info" class="test-result info"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>测试 1: 健康检查端点</h2>
+        <button onclick="testHealth()">测试 /health</button>
+        <div id="health-result" class="test-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>测试 2: 免责声明端点</h2>
+        <button onclick="testAgreement()">测试 /api/v1/auth/agreement</button>
+        <div id="agreement-result" class="test-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>测试 3: 登录端点（模拟）</h2>
+        <button onclick="testLogin()">测试 /api/v1/auth/login</button>
+        <div id="login-result" class="test-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>测试 4: CORS 预检请求</h2>
+        <button onclick="testCORS()">测试 CORS OPTIONS</button>
+        <div id="cors-result" class="test-result"></div>
+    </div>
+    
+    <script>
+        // 自动检测 API 基础路径
+        function getApiBase() {
+            const hostname = window.location.hostname;
+            const protocol = window.location.protocol;
+            const port = window.location.port;
+            
+            if (hostname === 'www.chat5202ol.xyz' || hostname === 'app.chat5202ol.xyz') {
+                return 'https://api.chat5202ol.xyz/api/v1';
+            }
+            
+            // 如果当前页面在8000端口，使用相对路径
+            if (port === '8000' || !port) {
+                return '/api/v1';
+            }
+            
+            // 否则使用当前主机和8000端口
+            return `${protocol}//${hostname}:8000/api/v1`;
+        }
+        
+        const API_BASE = getApiBase();
+        const BASE_URL = window.location.protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : '');
+        
+        // 显示环境信息
+        document.getElementById('env-info').innerHTML = `
+            <strong>当前页面URL:</strong> ${window.location.href}<br>
+            <strong>API基础路径:</strong> ${API_BASE}<br>
+            <strong>完整API URL:</strong> ${API_BASE}/auth/login<br>
+            <strong>Origin:</strong> ${window.location.origin}<br>
+            <strong>协议:</strong> ${window.location.protocol}<br>
+            <strong>主机:</strong> ${window.location.hostname}<br>
+            <strong>端口:</strong> ${window.location.port || '默认'}
+        `;
+        
+        async function testHealth() {
+            const resultDiv = document.getElementById('health-result');
+            resultDiv.className = 'test-result info';
+            resultDiv.textContent = '测试中...';
+            
+            try {
+                const url = BASE_URL.replace(window.location.port || '', '8000').replace(/\/$/, '') + '/health';
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                resultDiv.className = 'test-result success';
+                resultDiv.innerHTML = `<strong>成功!</strong><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                resultDiv.className = 'test-result error';
+                resultDiv.innerHTML = `<strong>失败:</strong> ${error.message}<br><pre>${error.stack}</pre>`;
+            }
+        }
+        
+        async function testAgreement() {
+            const resultDiv = document.getElementById('agreement-result');
+            resultDiv.className = 'test-result info';
+            resultDiv.textContent = '测试中...';
+            
+            try {
+                const url = API_BASE + '/auth/agreement';
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept-Language': 'zh_CN'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                resultDiv.className = 'test-result success';
+                resultDiv.innerHTML = `<strong>成功!</strong><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                resultDiv.className = 'test-result error';
+                resultDiv.innerHTML = `<strong>失败:</strong> ${error.message}<br><pre>${error.stack}</pre>`;
+            }
+        }
+        
+        async function testLogin() {
+            const resultDiv = document.getElementById('login-result');
+            resultDiv.className = 'test-result info';
+            resultDiv.textContent = '测试中...';
+            
+            try {
+                const url = API_BASE + '/auth/login';
+                const formData = new URLSearchParams();
+                formData.append('username', 'test');
+                formData.append('password', 'test');
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Accept-Language': 'zh_CN'
+                    },
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                // 登录失败是预期的（因为我们用的是测试账号）
+                if (response.status === 401) {
+                    resultDiv.className = 'test-result success';
+                    resultDiv.innerHTML = `<strong>连接成功!</strong> API端点可访问，返回401是预期的（测试账号不存在）<br><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else if (response.ok) {
+                    resultDiv.className = 'test-result success';
+                    resultDiv.innerHTML = `<strong>成功!</strong><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    resultDiv.className = 'test-result error';
+                    resultDiv.innerHTML = `<strong>HTTP错误:</strong> ${response.status}<br><pre>${JSON.stringify(data, null, 2)}</pre>`;
+                }
+            } catch (error) {
+                resultDiv.className = 'test-result error';
+                resultDiv.innerHTML = `<strong>失败:</strong> ${error.message}<br><pre>${error.stack}</pre>`;
+            }
+        }
+        
+        async function testCORS() {
+            const resultDiv = document.getElementById('cors-result');
+            resultDiv.className = 'test-result info';
+            resultDiv.textContent = '测试中...';
+            
+            try {
+                const url = API_BASE + '/auth/login';
+                const response = await fetch(url, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin,
+                        'Access-Control-Request-Method': 'POST',
+                        'Access-Control-Request-Headers': 'Content-Type'
+                    }
+                });
+                
+                const corsHeaders = {
+                    'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
+                    'access-control-allow-methods': response.headers.get('access-control-allow-methods'),
+                    'access-control-allow-credentials': response.headers.get('access-control-allow-credentials'),
+                    'access-control-allow-headers': response.headers.get('access-control-allow-headers')
+                };
+                
+                resultDiv.className = 'test-result success';
+                resultDiv.innerHTML = `<strong>CORS配置:</strong><pre>${JSON.stringify(corsHeaders, null, 2)}</pre>`;
+            } catch (error) {
+                resultDiv.className = 'test-result error';
+                resultDiv.innerHTML = `<strong>失败:</strong> ${error.message}<br><pre>${error.stack}</pre>`;
+            }
+        }
+        
+        // 页面加载时自动运行所有测试
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                testHealth();
+                setTimeout(() => testAgreement(), 500);
+                setTimeout(() => testCORS(), 1000);
+            }, 500);
+        });
+    </script>
+</body>
+</html>

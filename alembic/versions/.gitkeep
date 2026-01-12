@@ -1,0 +1,2 @@
+# 此文件用于确保 versions 目录被 Git 跟踪
+# Alembic 迁移脚本将存储在此目录中

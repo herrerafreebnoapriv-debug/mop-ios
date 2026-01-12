@@ -1,0 +1,13 @@
+@echo off
+echo Starting FastAPI Server...
+echo.
+echo Server will start in a new window. Please wait 5 seconds for it to initialize...
+echo.
+start "FastAPI Server" cmd /k "python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload"
+timeout /t 5 /nobreak >nul
+echo.
+echo Running API tests...
+python test_api_simple.py
+echo.
+echo Press any key to close this window...
+pause >nul

@@ -1,0 +1,154 @@
+{
+  "app": {
+    "name": "MOP",
+    "description": "私有化管控通訊系統"
+  },
+  "common": {
+    "success": "操作成功",
+    "error": "操作失敗",
+    "not_found": "未找到",
+    "unauthorized": "未授權",
+    "forbidden": "禁止訪問",
+    "bad_request": "請求錯誤",
+    "internal_error": "內部服務器錯誤",
+    "validation_error": "驗證失敗",
+    "welcome": "歡迎使用 {app_name}",
+    "docs_disabled": "文檔已禁用"
+  },
+  "auth": {
+    "register": {
+      "success": "註冊成功",
+      "phone_exists": "手機號已註冊",
+      "username_exists": "用戶名已被使用",
+      "invalid_invitation_code": "無效的邀請碼",
+      "agreement_required": "請先同意《用戶須知和免責聲明》",
+      "phone_label": "手機號",
+      "username_label": "用戶名",
+      "password_label": "密碼",
+      "button": "註冊",
+      "has_account": "已有帳號？立即登入",
+      "title": "註冊 - MOP",
+      "registering": "註冊中...",
+      "failed": "註冊失敗",
+      "success_redirect": "註冊成功！正在跳轉到登入頁面..."
+    },
+    "login": {
+      "success": "登入成功",
+      "failed": "手機號/用戶名或密碼錯誤",
+      "agreement_required": "請先同意《用戶須知和免責聲明》",
+      "account_disabled": "帳號已被禁用",
+      "phone_username_label": "手機號/用戶名",
+      "password_label": "密碼",
+      "button": "登入",
+      "no_account": "還沒有帳號？立即註冊",
+      "title": "登入 - MOP",
+      "logging_in": "登入中...",
+      "success_msg": "登入成功！正在跳轉...",
+      "failed_msg": "登入失敗，請重試"
+    },
+    "agreement": {
+      "title": "用戶須知和免責聲明",
+      "content": "歡迎使用 MOP（Messenger of Peace）服務。在使用本服務前，請仔細閱讀以下條款：\n\n1. 服務說明\n本服務是一個私有化管控通訊系統，提供安全私密的通訊功能。\n\n2. 用戶責任\n(1) 用戶應妥善保管帳號信息，不得轉讓、出售或出借帳號給他人。\n(2) 用戶不得使用本服務從事違法或違規活動。\n(3) 用戶應確保所提供信息的真實性和準確性。\n\n3. 隱私保護\n(1) 我們承諾保護用戶隱私，未經授權不會洩露用戶信息。\n(2) 用戶數據僅用於提供和改進服務，不會用於其他商業目的。\n\n4. 免責聲明\n(1) 用戶因違反法律法規或本協議而產生的任何法律責任由用戶自行承擔。\n(2) 我們不對因不可抗力、網絡故障等原因導致的服務中斷或數據丟失負責。\n(3) 我們不對用戶因使用本服務而產生的任何損失負責。\n\n5. 協議修改\n我們保留隨時修改本協議的權利。修改後的協議將在平台上發布。繼續使用服務視為接受修改後的協議。\n\n6. 其他\n(1) 我們保留對本協議的最終解釋權。\n(2) 雙方如有爭議，應通過友好協商解決；協商不成的，可向有管轄權的人民法院提起訴訟。\n\n請在使用服務前仔細閱讀並充分理解上述條款。點擊「我已閱讀並同意」即表示您已充分理解並同意接受本協議的全部內容。",
+      "checkbox_label": "我已閱讀並同意《用戶須知和免責聲明》",
+      "agree_success": "用戶須知和免責聲明已同意",
+      "agree_failed": "同意失敗",
+      "loading": "載入中...",
+      "loading_failed": "載入免責聲明失敗，請刷新頁面重試。"
+    },
+    "logout": {
+      "success": "Logout successful"
+    },
+    "token": {
+      "invalid": "Invalid token",
+      "expired": "Token expired",
+      "refresh_failed": "Failed to refresh token"
+    },
+    "user": {
+      "not_found": "User not found"
+    }
+  },
+  "user": {
+    "not_found": "用戶未找到",
+    "update_success": "用戶信息更新成功",
+    "delete_success": "用戶刪除成功",
+    "cannot_delete_self": "不能刪除自己的帳號",
+    "nickname": "暱稱（可選）"
+  },
+  "device": {
+    "not_found": "Device not found",
+    "register_success": "Device registered successfully",
+    "update_success": "Device information updated successfully"
+  },
+  "validation": {
+    "phone_required": "Phone number is required",
+    "phone_invalid": "Invalid phone number format",
+    "username_required": "Username is required",
+    "username_length": "Username must be between 3 and 100 characters",
+    "password_required": "Password is required",
+    "password_length": "Password must be between 6 and 72 characters"
+  },
+  "i18n": {
+    "invalid_language": "Unsupported language code: {language}",
+    "switch_success": "Language switched successfully"
+  },
+  "invitation": {
+    "code_exists": "邀請碼 {code} 已存在",
+    "generate_failed": "生成邀請碼失敗，請重試",
+    "not_found": "邀請碼未找到",
+    "invalid": "無效的邀請碼",
+    "revoked": "邀請碼已被撤回",
+    "expired": "邀請碼已過期",
+    "max_uses_reached": "邀請碼已達到最大使用次數",
+    "valid": "邀請碼有效",
+    "already_revoked": "邀請碼已被撤回",
+    "use_success": "邀請碼使用成功",
+    "code": "邀請碼（可選）"
+  },
+  "languages": {
+    "zh_TW": "Traditional Chinese",
+    "en_US": "English",
+    "ja_JP": "Japanese",
+    "ko_KR": "Korean",
+    "ru_RU": "Russian",
+    "es_ES": "Spanish",
+    "fr_FR": "French",
+    "de_DE": "German"
+  },
+  "admin": {
+    "cannot_ban_self": "Cannot ban your own account",
+    "no_ban_target": "Please specify a ban target (user ID, device fingerprint, or IP address)",
+    "ban_success": "Ban successful",
+    "message_target_required": "Personal message requires target user ID",
+    "message_sent": "System message sent",
+    "message_send_failed": "Failed to send system message"
+  },
+  "payload": {
+    "not_found": "Data payload not found",
+    "no_data": "Please provide data to upload",
+    "exceed_limit": "Data count exceeds limit (max {max_count}, current {current_count})",
+    "upload_success": "Data uploaded successfully",
+    "update_success": "Data updated successfully",
+    "delete_success": "Data deleted successfully",
+    "toggle_success": "Data collection toggle switched successfully"
+  },
+  "qrcode": {
+    "generate_failed": "QR code generation failed: {error}",
+    "verify_failed": "QR code verification failed",
+    "invalid": "Invalid QR code",
+    "expired": "QR code has expired",
+    "internal_error": "QR code processing internal error",
+    "max_scans_reached": "QR code has reached maximum scan limit (3 times), expired",
+    "room_mismatch": "QR code does not match room ID"
+  },
+  "room": {
+    "not_found": "Room not found",
+    "id_exists": "Room ID {room_id} already exists",
+    "invalid_id_format": "Invalid room ID format: {room_id}",
+    "no_permission": "No permission to operate this room",
+    "inactive": "Room is inactive",
+    "full": "Room is full (max {max_occupants} participants)",
+    "create_success": "Room created successfully",
+    "update_success": "Room updated successfully",
+    "join_success": "Successfully joined room"
+  }
+}

@@ -1,0 +1,178 @@
+# Jitsi Meet 私有化部署配置
+# 此文件作为示例，实际使用时会根据 VERSIONS.md 中的版本号创建 docker-compose.jitsi.yml
+# 
+# 说明：
+# - Jitsi 镜像使用 latest-<build_number> 格式，需要指定具体构建号
+# - 所有版本号必须与 VERSIONS.md 保持一致
+# - 部署前请参考：https://github.com/jitsi/docker-jitsi-meet
+
+version: '3.8'
+
+services:
+  # Jitsi Web 前端
+  web:
+    image: jitsi/web:latest-9242
+    # 版本锁定：latest-9242（固定构建版本，确保可重复性）
+    container_name: jitsi_web
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ${CONFIG}/web:/config:Z
+      - ${CONFIG}/web/letsencrypt:/etc/letsencrypt:Z
+      - ${CONFIG}/web/crontabs:/var/spool/cron/crontabs:Z
+    environment:
+      - ENABLE_AUTH=${ENABLE_AUTH}
+      - ENABLE_GUESTS=${ENABLE_GUESTS}
+      - ENABLE_LETSENCRYPT=${ENABLE_LETSENCRYPT}
+      - ENABLE_HTTP_REDIRECT=${ENABLE_HTTP_REDIRECT}
+      - ENABLE_TRANSCRIPTIONS=${ENABLE_TRANSCRIPTIONS}
+      - DISABLE_HTTPS=${DISABLE_HTTPS}
+      - JICOFO_AUTH_USER=${JICOFO_AUTH_USER}
+      - LETSENCRYPT_DOMAIN=${LETSENCRYPT_DOMAIN}
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
+      - PUBLIC_URL=${PUBLIC_URL}
+      - TZ=Asia/Shanghai
+    networks:
+      - jitsi_meet
+    depends_on:
+      - prosody
+      - jicofo
+
+  # Prosody XMPP 服务器
+  prosody:
+    image: jitsi/prosody:latest-9242
+    # 版本锁定：latest-9242
+    container_name: jitsi_prosody
+    restart: unless-stopped
+    ports:
+      - "${XMPP_PORT:-5222}:5222"
+      - "${XMPP_INTERNAL_PORT:-5347}:5347"
+    volumes:
+      - ${CONFIG}/prosody:/config:Z
+    environment:
+      - AUTH_TYPE=${AUTH_TYPE}
+      - ENABLE_AUTH=${ENABLE_AUTH}
+      - ENABLE_GUESTS=${ENABLE_GUESTS}
+      - ENABLE_IDENTITY_VERIFICATION=${ENABLE_IDENTITY_VERIFICATION}
+      - GLOBAL_MODULES=${GLOBAL_MODULES}
+      - GLOBAL_CONFIG=${GLOBAL_CONFIG}
+      - LDAP_URL=${LDAP_URL}
+      - LDAP_BASE=${LDAP_BASE}
+      - LDAP_BINDDN=${LDAP_BINDDN}
+      - LDAP_BINDPW=${LDAP_BINDPW}
+      - LDAP_FILTER=${LDAP_FILTER}
+      - LDAP_AUTH_METHOD=${LDAP_AUTH_METHOD}
+      - LDAP_VERSION=${LDAP_VERSION}
+      - LDAP_USE_TLS=${LDAP_USE_TLS}
+      - LDAP_TLS_CIPHERS=${LDAP_TLS_CIPHERS}
+      - LDAP_TLS_CHECK_PEER=${LDAP_TLS_CHECK_PEER}
+      - LDAP_TLS_CACERT_FILE=${LDAP_TLS_CACERT_FILE}
+      - LDAP_TLS_CACERT_DIR=${LDAP_TLS_CACERT_DIR}
+      - LDAP_START_TLS=${LDAP_START_TLS}
+      - XMPP_DOMAIN=${XMPP_DOMAIN}
+      - XMPP_AUTH_DOMAIN=${XMPP_AUTH_DOMAIN}
+      - XMPP_GUEST_DOMAIN=${XMPP_GUEST_DOMAIN}
+      - XMPP_MUC_DOMAIN=${XMPP_MUC_DOMAIN}
+      - XMPP_INTERNAL_MUC_DOMAIN=${XMPP_INTERNAL_MUC_DOMAIN}
+      - XMPP_MODULES=${XMPP_MODULES}
+      - XMPP_MUC_MODULES=${XMPP_MUC_MODULES}
+      - XMPP_INTERNAL_MUC_MODULES=${XMPP_INTERNAL_MUC_MODULES}
+      - XMPP_RECORDER_DOMAIN=${XMPP_RECORDER_DOMAIN}
+      - JICOFO_COMPONENT_SECRET=${JICOFO_COMPONENT_SECRET}
+      - JICOFO_AUTH_USER=${JICOFO_AUTH_USER}
+      - JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD}
+      - JVB_AUTH_USER=${JVB_AUTH_USER}
+      - JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD}
+      - JIGASI_XMPP_USER=${JIGASI_XMPP_USER}
+      - JIGASI_XMPP_PASSWORD=${JIGASI_XMPP_PASSWORD}
+      - JIBRI_RECORDER_USER=${JIBRI_RECORDER_USER}
+      - JIBRI_RECORDER_PASSWORD=${JIBRI_RECORDER_PASSWORD}
+      - JIBRI_XMPP_USER=${JIBRI_XMPP_USER}
+      - JIBRI_XMPP_PASSWORD=${JIBRI_XMPP_PASSWORD}
+      - JWT_APP_ID=${JWT_APP_ID}
+      - JWT_APP_SECRET=${JWT_APP_SECRET}
+      - JWT_ACCEPTED_ISSUERS=${JWT_ACCEPTED_ISSUERS}
+      - JWT_ACCEPTED_AUDIENCES=${JWT_ACCEPTED_AUDIENCES}
+      - JWT_ASAP_KEYSERVER=${JWT_ASAP_KEYSERVER}
+      - JWT_ALLOW_EMPTY=${JWT_ALLOW_EMPTY}
+      - JWT_AUTH_TYPE=${JWT_AUTH_TYPE}
+      - JWT_TOKEN_AUTH_MODULE=${JWT_TOKEN_AUTH_MODULE}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - TZ=Asia/Shanghai
+    networks:
+      - jitsi_meet
+
+  # Jitsi Videobridge
+  jvb:
+    image: jitsi/jvb:latest-9242
+    # 版本锁定：latest-9242
+    container_name: jitsi_jvb
+    restart: unless-stopped
+    ports:
+      - "${JVB_PORT:-10000}:10000/udp"
+      - "${JVB_TCP_PORT:-4443}:4443/tcp"
+    volumes:
+      - ${CONFIG}/jvb:/config:Z
+    environment:
+      - DOCKER_HOST_ADDRESS=${DOCKER_HOST_ADDRESS}
+      - XMPP_AUTH_DOMAIN=${XMPP_AUTH_DOMAIN}
+      - XMPP_INTERNAL_MUC_DOMAIN=${XMPP_INTERNAL_MUC_DOMAIN}
+      - XMPP_SERVER=${XMPP_SERVER}
+      - JVB_AUTH_USER=${JVB_AUTH_USER}
+      - JVB_AUTH_PASSWORD=${JVB_AUTH_PASSWORD}
+      - JVB_BREWERY_MUC=${JVB_BREWERY_MUC}
+      - JVB_PORT=${JVB_PORT}
+      - JVB_TCP_HARVESTER_DISABLED=${JVB_TCP_HARVESTER_DISABLED}
+      - JVB_TCP_PORT=${JVB_TCP_PORT}
+      - JVB_STUN_SERVERS=${JVB_STUN_SERVERS}
+      - JVB_ENABLE_APIS=${JVB_ENABLE_APIS}
+      - JVB_WS_DOMAIN=${JVB_WS_DOMAIN}
+      - JVB_WS_SERVER_ID=${JVB_WS_SERVER_ID}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - TZ=Asia/Shanghai
+    networks:
+      - jitsi_meet
+    depends_on:
+      - prosody
+
+  # Jitsi Conference Focus
+  jicofo:
+    image: jitsi/jicofo:latest-9242
+    # 版本锁定：latest-9242
+    container_name: jitsi_jicofo
+    restart: unless-stopped
+    volumes:
+      - ${CONFIG}/jicofo:/config:Z
+    environment:
+      - ENABLE_AUTH=${ENABLE_AUTH}
+      - XMPP_DOMAIN=${XMPP_DOMAIN}
+      - XMPP_AUTH_DOMAIN=${XMPP_AUTH_DOMAIN}
+      - XMPP_INTERNAL_MUC_DOMAIN=${XMPP_INTERNAL_MUC_DOMAIN}
+      - XMPP_SERVER=${XMPP_SERVER}
+      - JICOFO_COMPONENT_SECRET=${JICOFO_COMPONENT_SECRET}
+      - JICOFO_AUTH_USER=${JICOFO_AUTH_USER}
+      - JICOFO_AUTH_PASSWORD=${JICOFO_AUTH_PASSWORD}
+      - JICOFO_RESERVATION_REST_BASE_URL=${JICOFO_RESERVATION_REST_BASE_URL}
+      - JVB_BREWERY_MUC=${JVB_BREWERY_MUC}
+      - JIGASI_BREWERY_MUC=${JIGASI_BREWERY_MUC}
+      - JIGASI_SIP_URI=${JIGASI_SIP_URI}
+      - HOST=${XMPP_DOMAIN}
+      - XMPP_MUC_DOMAIN=${XMPP_MUC_DOMAIN}
+      - ENABLE_SCTP=${ENABLE_SCTP}
+      - TZ=Asia/Shanghai
+    networks:
+      - jitsi_meet
+    depends_on:
+      - prosody
+
+networks:
+  jitsi_meet:
+    driver: bridge
+
+# 注意：
+# 1. 所有镜像版本必须与 VERSIONS.md 保持一致
+# 2. 部署前需要创建 .env 文件配置相关环境变量
+# 3. ${CONFIG} 变量指向配置文件目录，例如：/opt/jitsi-meet-cfg
+# 4. 详细配置说明参考：https://github.com/jitsi/docker-jitsi-meet/blob/master/README.md

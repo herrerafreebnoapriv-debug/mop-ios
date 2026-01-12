@@ -1,0 +1,279 @@
+# Nginx 配置示例（版本锁定：nginx:1.27.3-alpine）
+# 
+# 说明：
+# - 此配置文件用于反向代理和静态文件服务
+# - 实际使用时复制此文件到 nginx/nginx.conf 并根据环境修改
+# - 版本必须与 VERSIONS.md 中的 nginx 版本保持一致
+
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log warn;
+pid /var/run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log /var/log/nginx/access.log main;
+
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+
+    # Gzip 压缩
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss application/rss+xml font/truetype font/opentype application/vnd.ms-fontobject image/svg+xml;
+
+    # 上传文件大小限制
+    client_max_body_size 100M;
+
+    # SSL 配置
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    # 反向代理到 FastAPI 后端
+    upstream backend {
+        server backend:8000;
+        keepalive 32;
+    }
+
+    # 反向代理到 Jitsi Web（如果使用）
+    upstream jitsi_web {
+        server web:80;
+        keepalive 32;
+    }
+
+    # HTTP 服务器（重定向到 HTTPS）
+    server {
+        listen 80;
+        server_name _;
+
+        # 健康检查端点（允许 HTTP 访问）
+        location /health {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
+        }
+
+        # 其他请求重定向到 HTTPS
+        location / {
+            return 301 https://$host$request_uri;
+        }
+    }
+
+    # ==================== API 服务器 (api.chat5202ol.xyz) ====================
+    server {
+        listen 443 ssl http2;
+        server_name api.chat5202ol.xyz;
+
+        # SSL 证书路径（从环境变量或挂载卷读取）
+        ssl_certificate /etc/nginx/certs/fullchain.pem;
+        ssl_certificate_key /etc/nginx/certs/privkey.pem;
+
+        # SSL 会话配置
+        ssl_session_cache shared:SSL:10m;
+        ssl_session_timeout 10m;
+
+        # 安全头
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+
+        # API 路由（反向代理到 FastAPI 后端）
+        location /api/ {
+            proxy_pass http://backend;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # 超时设置
+            proxy_connect_timeout 60s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+        }
+
+        # WebSocket 支持（用于 Socket.io）
+        location /socket.io/ {
+            proxy_pass http://backend;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            # WebSocket 超时设置（更长）
+            proxy_connect_timeout 7d;
+            proxy_send_timeout 7d;
+            proxy_read_timeout 7d;
+        }
+
+        # Jitsi Meet 路由（如果使用 Jitsi）
+        location /meet/ {
+            proxy_pass http://jitsi_web/;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # 静态文件服务（如果前端构建为静态文件）
+        location /static/ {
+            alias /var/www/static/;
+            expires 30d;
+            add_header Cache-Control "public, immutable";
+        }
+
+        # 根路径（API 文档或默认页面）
+        location / {
+            proxy_pass http://backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+
+    # ==================== PC端网页版 (www.chat5202ol.xyz) ====================
+    server {
+        listen 443 ssl http2;
+        server_name www.chat5202ol.xyz chat5202ol.xyz;
+
+        # SSL 证书路径
+        ssl_certificate /etc/nginx/certs/fullchain.pem;
+        ssl_certificate_key /etc/nginx/certs/privkey.pem;
+
+        # SSL 会话配置
+        ssl_session_cache shared:SSL:10m;
+        ssl_session_timeout 10m;
+
+        # 安全头
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+
+        # API 路由（代理到 api.chat5202ol.xyz）
+        location /api/ {
+            proxy_pass https://api.chat5202ol.xyz;
+            proxy_http_version 1.1;
+            proxy_set_header Host api.chat5202ol.xyz;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            proxy_connect_timeout 60s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+        }
+
+        # WebSocket 支持（Socket.io）
+        location /socket.io/ {
+            proxy_pass https://api.chat5202ol.xyz;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host api.chat5202ol.xyz;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            proxy_connect_timeout 7d;
+            proxy_send_timeout 7d;
+            proxy_read_timeout 7d;
+        }
+
+        # 静态文件服务
+        location /static/ {
+            alias /var/www/static/;
+            expires 30d;
+            add_header Cache-Control "public, immutable";
+        }
+
+        # 前端应用根路径
+        location / {
+            root /var/www/html;
+            try_files $uri $uri/ /index.html;
+            index index.html;
+        }
+    }
+
+    # ==================== 移动端应用 (app.chat5202ol.xyz) ====================
+    server {
+        listen 443 ssl http2;
+        server_name app.chat5202ol.xyz;
+
+        # SSL 证书路径
+        ssl_certificate /etc/nginx/certs/fullchain.pem;
+        ssl_certificate_key /etc/nginx/certs/privkey.pem;
+
+        # SSL 会话配置
+        ssl_session_cache shared:SSL:10m;
+        ssl_session_timeout 10m;
+
+        # 安全头
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+
+        # API 路由（代理到 api.chat5202ol.xyz）
+        location /api/ {
+            proxy_pass https://api.chat5202ol.xyz;
+            proxy_http_version 1.1;
+            proxy_set_header Host api.chat5202ol.xyz;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            proxy_connect_timeout 60s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+        }
+
+        # WebSocket 支持（Socket.io）
+        location /socket.io/ {
+            proxy_pass https://api.chat5202ol.xyz;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host api.chat5202ol.xyz;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            
+            proxy_connect_timeout 7d;
+            proxy_send_timeout 7d;
+            proxy_read_timeout 7d;
+        }
+
+        # 移动端应用根路径
+        location / {
+            root /var/www/app;
+            try_files $uri $uri/ /index.html;
+            index index.html;
+        }
+    }
+}

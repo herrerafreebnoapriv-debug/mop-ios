@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="i18n-title" content="auth.login.title">
+    <title>登入 - MOP</title>
+    <link rel="manifest" href="/static/manifest.json">
+    <!-- 随机 Favicon - 每次加载随机选择 -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=random" id="favicon-link">
+    <link rel="shortcut icon" href="/favicon.ico?v=random">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            height: 100%;
+            height: -webkit-fill-available; /* iOS Safari */
+            overflow: hidden;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+            position: relative;
+        }
+        
+        /* 多语言选择器 - 右上角固定位置 */
+        .language-selector {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 8px 12px;
+            border-radius: 25px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+        }
+        
+        .language-selector:hover {
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+            transform: translateY(-2px);
+        }
+        
+        .language-selector::before {
+            content: "🌐";
+            font-size: 18px;
+            margin-right: 4px;
+        }
+        
+        .language-selector select {
+            border: none;
+            background: transparent;
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+            cursor: pointer;
+            outline: none;
+            padding: 4px 8px;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right center;
+            padding-right: 24px;
+        }
+        
+        /* 移动端优化 */
+        @media (max-width: 768px) {
+            .language-selector {
+                top: env(safe-area-inset-top, 10px);
+                right: 10px;
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+            
+            .language-selector::before {
+                font-size: 16px;
+            }
+            
+            .language-selector select {
+                font-size: 12px;
+                padding-right: 20px;
+            }
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 450px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+            margin: 20px;
+            position: relative;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                border-radius: 0;
+                margin: 0;
+                min-height: 100vh;
+                min-height: -webkit-fill-available;
+                display: flex;
+                flex-direction: column;
+            }
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+        
+        @media (max-width: 768px) {
+            .header {
+                padding: 40px 20px 30px;
+                padding-top: calc(40px + env(safe-area-inset-top));
+            }
+        }
+        
+        .header h1 {
+            font-size: clamp(1.5em, 4vw, 2em);
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: clamp(0.9em, 2.5vw, 1em);
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        @media (max-width: 768px) {
+            .content {
+                padding: 20px;
+                flex: 1;
+                overflow-y: auto;
+            }
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: clamp(14px, 2vw, 16px);
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 14px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px; /* 防止iOS自动缩放 */
+            transition: border-color 0.3s;
+            -webkit-appearance: none;
+        }
+        
+        @media (max-width: 768px) {
+            .form-group input {
+                font-size: 16px; /* 保持16px防止iOS缩放 */
+            }
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .agreement-section {
+            margin: 25px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .agreement-title {
+            font-size: clamp(1em, 2.5vw, 1.1em);
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        
+        .agreement-content {
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: clamp(12px, 2vw, 14px);
+            line-height: 1.6;
+            color: #555;
+            white-space: pre-wrap;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        @media (max-width: 768px) {
+            .agreement-content {
+                max-height: 150px;
+            }
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+            min-width: 20px;
+            height: 20px;
+            margin-top: 3px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        
+        .checkbox-group label {
+            flex: 1;
+            margin: 0;
+            font-size: clamp(12px, 2vw, 14px);
+            cursor: pointer;
+            line-height: 1.5;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .error-message {
+            color: #e74c3c;
+            font-size: clamp(12px, 2vw, 14px);
+            margin-top: 10px;
+            padding: 10px;
+            background: #fee;
+            border-radius: 6px;
+            display: none;
+        }
+        
+        .success-message {
+            color: #27ae60;
+            font-size: clamp(12px, 2vw, 14px);
+            margin-top: 10px;
+            padding: 10px;
+            background: #efe;
+            border-radius: 6px;
+            display: none;
+        }
+        
+        .links {
+            text-align: center;
+            margin-top: 20px;
+            font-size: clamp(12px, 2vw, 14px);
+        }
+        
+        .links a {
+            color: #667eea;
+            text-decoration: none;
+        }
+        
+        .links a:hover {
+            text-decoration: underline;
+        }
+        
+        /* 隐藏滚动条但保持滚动功能 */
+        .agreement-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .agreement-content::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .agreement-content::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        
+        .agreement-content::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        /* 平板适配 */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .container {
+                max-width: 500px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 多语言选择器 - 右上角固定 -->
+    <div class="language-selector">
+        <select id="language-select">
+            <option value="zh_TW">繁體中文</option>
+            <option value="en_US">English</option>
+            <option value="es_ES">Español</option>
+            <option value="fr_FR">Français</option>
+            <option value="de_DE">Deutsch</option>
+            <option value="ja_JP">日本語</option>
+            <option value="ko_KR">한국어</option>
+            <option value="pt_BR">Português (Brasil)</option>
+            <option value="ru_RU">Русский</option>
+            <option value="ar_SA">العربية</option>
+        </select>
+    </div>
+    
+    <div class="container">
+        <div class="header">
+            <h1 id="app-name">MOP</h1>
+            <p id="app-desc">Private Communication Control System</p>
+        </div>
+        
+        <div class="content">
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="username" id="username-label">Phone/Username</label>
+                    <input type="text" id="username" name="username" required autocomplete="username" placeholder="Phone/Username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password" id="password-label">Password</label>
+                    <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="Password">
+                </div>
+                
+                <div class="agreement-section">
+                    <div class="agreement-title" id="agreement-title">User Agreement and Disclaimer</div>
+                    <div class="agreement-content" id="agreement-content">Loading...</div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="agree-checkbox" required>
+                        <label for="agree-checkbox" id="checkbox-label">I have read and agree to the User Agreement and Disclaimer</label>
+                    </div>
+                </div>
+                
+                <div class="error-message" id="error-message"></div>
+                <div class="success-message" id="success-message"></div>
+                
+                <button type="submit" class="btn" id="login-btn" disabled>Login</button>
+            </form>
+            
+            <div class="links">
+                <a href="register.html" id="register-link">No account? Register now</a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 引入 i18n 工具 -->
+    <script src="/static/i18n.js"></script>
+    
+    <script>
+        // 自动检测 API 基础路径
+        function getApiBase() {
+            const hostname = window.location.hostname;
+            if (hostname === 'www.chat5202ol.xyz' || hostname === 'app.chat5202ol.xyz') {
+                return 'https://api.chat5202ol.xyz/api/v1';
+            }
+            return '/api/v1';
+        }
+        const API_BASE = getApiBase();
+        let agreementData = null;
+        
+        // 更新页面文本（使用 i18n）
+        function updatePageText() {
+            // 确保 i18n 已初始化
+            if (!window.i18n || typeof window.i18n.t !== 'function') {
+                console.error('i18n not initialized');
+                return;
+            }
+            
+            // 更新应用名称和描述
+            const appName = window.i18n.t('app.name');
+            const appDesc = window.i18n.t('app.description');
+            if (appName && appName !== 'app.name') {
+                document.getElementById('app-name').textContent = appName;
+            }
+            if (appDesc && appDesc !== 'app.description') {
+                document.getElementById('app-desc').textContent = appDesc;
+            }
+            
+            // 更新表单标签
+            const usernameLabel = window.i18n.t('auth.login.phone_username_label');
+            const passwordLabel = window.i18n.t('auth.login.password_label');
+            if (usernameLabel && usernameLabel !== 'auth.login.phone_username_label') {
+                document.getElementById('username-label').textContent = usernameLabel;
+                document.getElementById('username').placeholder = usernameLabel;
+            }
+            if (passwordLabel && passwordLabel !== 'auth.login.password_label') {
+                document.getElementById('password-label').textContent = passwordLabel;
+                document.getElementById('password').placeholder = passwordLabel;
+            }
+            
+            // 更新按钮
+            const loginBtn = document.getElementById('login-btn');
+            const buttonText = window.i18n.t('auth.login.button');
+            if (buttonText && buttonText !== 'auth.login.button') {
+                if (!loginBtn.disabled) {
+                    loginBtn.textContent = buttonText;
+                }
+            }
+            
+            // 更新链接
+            const registerLink = window.i18n.t('auth.login.no_account');
+            if (registerLink && registerLink !== 'auth.login.no_account') {
+                document.getElementById('register-link').textContent = registerLink;
+            }
+            
+            // 更新标题
+            const title = window.i18n.t('auth.login.title');
+            if (title && title !== 'auth.login.title') {
+                document.title = title;
+            }
+            
+            // 更新语言选择器
+            const langSelect = document.getElementById('language-select');
+            if (langSelect) {
+                langSelect.value = window.i18n.getCurrentLanguage();
+            }
+        }
+        
+        // 加载免责声明
+        async function loadAgreement() {
+            try {
+                const currentLang = window.i18n.getCurrentLanguage();
+                const response = await fetch(`${API_BASE}/auth/agreement`, {
+                    headers: {
+                        'Accept-Language': currentLang
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(window.i18n.t('auth.agreement.loading_failed'));
+                }
+                
+                agreementData = await response.json();
+                document.getElementById('agreement-title').textContent = agreementData.title;
+                document.getElementById('agreement-content').textContent = agreementData.content;
+                document.getElementById('checkbox-label').textContent = agreementData.checkbox_label;
+            } catch (error) {
+                console.error('Failed to load agreement:', error);
+                document.getElementById('agreement-content').textContent = window.i18n.t('auth.agreement.loading_failed');
+            }
+        }
+        
+        // 语言切换处理
+        function handleLanguageChange() {
+            const langSelect = document.getElementById('language-select');
+            if (langSelect) {
+                // 设置当前语言
+                langSelect.value = window.i18n.getCurrentLanguage();
+                
+                langSelect.addEventListener('change', async (e) => {
+                    await window.i18n.switchLanguage(e.target.value);
+                    updatePageText();
+                    await loadAgreement();
+                });
+            }
+        }
+        
+        // 勾选框状态变化
+        document.getElementById('agree-checkbox').addEventListener('change', (e) => {
+            const loginBtn = document.getElementById('login-btn');
+            loginBtn.disabled = !e.target.checked;
+            if (!loginBtn.disabled) {
+                loginBtn.textContent = window.i18n.t('auth.login.button');
+            }
+        });
+        
+        // 登录表单提交
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const errorMsg = document.getElementById('error-message');
+            const successMsg = document.getElementById('success-message');
+            const loginBtn = document.getElementById('login-btn');
+            
+            errorMsg.style.display = 'none';
+            successMsg.style.display = 'none';
+            loginBtn.disabled = true;
+            loginBtn.textContent = window.i18n.t('auth.login.logging_in');
+            
+            const formData = new FormData(e.target);
+            const username = formData.get('username');
+            const password = formData.get('password');
+            
+            try {
+                const agreeChecked = document.getElementById('agree-checkbox').checked;
+                if (!agreeChecked) {
+                    throw new Error(window.i18n.t('auth.login.agreement_required'));
+                }
+                
+                const formDataObj = new URLSearchParams();
+                formDataObj.append('username', username);
+                formDataObj.append('password', password);
+                
+                const currentLang = window.i18n.getCurrentLanguage();
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Accept-Language': currentLang
+                    },
+                    body: formDataObj
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || window.i18n.t('auth.login.failed'));
+                }
+                
+                localStorage.setItem('access_token', data.access_token);
+                localStorage.setItem('refresh_token', data.refresh_token);
+                
+                successMsg.textContent = window.i18n.t('auth.login.success_msg');
+                successMsg.style.display = 'block';
+                
+                setTimeout(() => {
+                    window.location.href = '/dashboard';
+                }, 1000);
+                
+            } catch (error) {
+                errorMsg.textContent = error.message || window.i18n.t('auth.login.failed_msg');
+                errorMsg.style.display = 'block';
+                loginBtn.disabled = false;
+                loginBtn.textContent = window.i18n.t('auth.login.button');
+            }
+        });
+        
+        // 防止iOS双击缩放
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function (event) {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+        
+        // 初始化
+        (async () => {
+            try {
+                // 等待 i18n 初始化完成
+                await window.i18n.init();
+                
+                // 确保翻译资源已加载
+                let retries = 0;
+                while (retries < 3 && (!window.i18n.t || typeof window.i18n.t !== 'function')) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    retries++;
+                }
+                
+                // 更新页面文本
+                updatePageText();
+                
+                // 加载免责声明
+                await loadAgreement();
+                
+                // 设置语言切换处理
+                handleLanguageChange();
+            } catch (error) {
+                console.error('Initialization error:', error);
+                // 即使出错也尝试更新页面
+                updatePageText();
+            }
+        })();
+    </script>
+</body>
+</html>

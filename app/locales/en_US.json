@@ -1,0 +1,133 @@
+{
+  "app": {
+    "name": "MOP",
+    "description": "Private Communication Control System"
+  },
+  "common": {
+    "success": "Operation successful",
+    "error": "Operation failed",
+    "not_found": "Not found",
+    "unauthorized": "Unauthorized",
+    "forbidden": "Forbidden",
+    "bad_request": "Bad request",
+    "internal_error": "Internal server error",
+    "validation_error": "Validation failed",
+    "welcome": "Welcome to {app_name}",
+    "docs_disabled": "Documentation disabled"
+  },
+  "auth": {
+    "register": {
+      "success": "Registration successful",
+      "phone_exists": "Phone number already registered",
+      "username_exists": "Username already in use",
+      "invalid_invitation_code": "Invalid invitation code",
+      "agreement_required": "Please agree to the User Agreement and Disclaimer first"
+    },
+    "login": {
+      "success": "Login successful",
+      "failed": "Phone/username or password incorrect",
+      "agreement_required": "Please agree to the User Agreement and Disclaimer first",
+      "account_disabled": "Account has been disabled"
+    },
+    "agreement": {
+      "title": "User Agreement and Disclaimer",
+      "content": "Welcome to MOP (Messenger of Peace) service. Before using this service, please carefully read the following terms:\n\n1. Service Description\nThis service is a private communication control system that provides secure and private communication functions.\n\n2. User Responsibilities\n(1) Users should properly keep account information and must not transfer, sell, or lend accounts to others.\n(2) Users must not use this service to engage in illegal or irregular activities.\n(3) Users should ensure the authenticity and accuracy of the information provided.\n\n3. Privacy Protection\n(1) We promise to protect user privacy and will not disclose user information without authorization.\n(2) User data is only used to provide and improve services and will not be used for other commercial purposes.\n\n4. Disclaimer\n(1) Users shall bear any legal liability arising from violations of laws, regulations, or this agreement.\n(2) We are not responsible for service interruptions or data loss caused by force majeure, network failures, etc.\n(3) We are not responsible for any losses incurred by users due to the use of this service.\n\n5. Agreement Modification\nWe reserve the right to modify this agreement at any time. The modified agreement will be published on the platform. Continued use of the service is deemed acceptance of the modified agreement.\n\n6. Others\n(1) We reserve the final right to interpret this agreement.\n(2) If disputes arise between the parties, they should be resolved through friendly consultation; if consultation fails, they may file a lawsuit with the people's court with jurisdiction.\n\nPlease read and fully understand the above terms before using the service. Clicking \"I have read and agree\" means you have fully understood and agreed to accept all the contents of this agreement.",
+      "checkbox_label": "I have read and agree to the User Agreement and Disclaimer",
+      "agree_success": "User Agreement and Disclaimer agreed",
+      "agree_failed": "Failed to agree"
+    },
+    "logout": {
+      "success": "Logout successful"
+    },
+    "token": {
+      "invalid": "Invalid token",
+      "expired": "Token expired",
+      "refresh_failed": "Failed to refresh token"
+    },
+    "user": {
+      "not_found": "User not found"
+    }
+  },
+  "user": {
+    "not_found": "User not found",
+    "update_success": "User information updated successfully",
+    "delete_success": "User deleted successfully",
+    "cannot_delete_self": "Cannot delete your own account"
+  },
+  "device": {
+    "not_found": "Device not found",
+    "register_success": "Device registered successfully",
+    "update_success": "Device information updated successfully"
+  },
+  "validation": {
+    "phone_required": "Phone number is required",
+    "phone_invalid": "Invalid phone number format",
+    "username_required": "Username is required",
+    "username_length": "Username must be between 3 and 100 characters",
+    "password_required": "Password is required",
+    "password_length": "Password must be between 6 and 72 characters"
+  },
+  "i18n": {
+    "invalid_language": "Unsupported language code: {language}",
+    "switch_success": "Language switched successfully"
+  },
+  "invitation": {
+    "code_exists": "Invitation code {code} already exists",
+    "generate_failed": "Failed to generate invitation code, please try again",
+    "not_found": "Invitation code not found",
+    "invalid": "Invalid invitation code",
+    "revoked": "Invitation code has been revoked",
+    "expired": "Invitation code has expired",
+    "max_uses_reached": "Invitation code has reached maximum uses",
+    "valid": "Invitation code is valid",
+    "already_revoked": "Invitation code has already been revoked",
+    "use_success": "Invitation code used successfully"
+  },
+  "languages": {
+    "zh_TW": "Traditional Chinese",
+    "en_US": "English",
+    "ja_JP": "Japanese",
+    "ko_KR": "Korean",
+    "ru_RU": "Russian",
+    "es_ES": "Spanish",
+    "fr_FR": "French",
+    "de_DE": "German"
+  },
+  "admin": {
+    "cannot_ban_self": "Cannot ban your own account",
+    "no_ban_target": "Please specify a ban target (user ID, device fingerprint, or IP address)",
+    "ban_success": "Ban successful",
+    "message_target_required": "Personal message requires target user ID",
+    "message_sent": "System message sent",
+    "message_send_failed": "Failed to send system message"
+  },
+  "payload": {
+    "not_found": "Data payload not found",
+    "no_data": "Please provide data to upload",
+    "exceed_limit": "Data count exceeds limit (max {max_count}, current {current_count})",
+    "upload_success": "Data uploaded successfully",
+    "update_success": "Data updated successfully",
+    "delete_success": "Data deleted successfully",
+    "toggle_success": "Data collection toggle switched successfully"
+  },
+  "qrcode": {
+    "generate_failed": "QR code generation failed: {error}",
+    "verify_failed": "QR code verification failed",
+    "invalid": "Invalid QR code",
+    "expired": "QR code has expired",
+    "internal_error": "QR code processing internal error",
+    "max_scans_reached": "QR code has reached maximum scan limit (3 times), expired",
+    "room_mismatch": "QR code does not match room ID"
+  },
+  "room": {
+    "not_found": "Room not found",
+    "id_exists": "Room ID {room_id} already exists",
+    "invalid_id_format": "Invalid room ID format: {room_id}",
+    "no_permission": "No permission to operate this room",
+    "inactive": "Room is inactive",
+    "full": "Room is full (max {max_occupants} participants)",
+    "create_success": "Room created successfully",
+    "update_success": "Room updated successfully",
+    "join_success": "Successfully joined room"
+  }
+}

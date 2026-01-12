@@ -1,0 +1,94 @@
+services:
+  # PostgreSQL 数据库
+  # 版本锁定：postgres:15.5-alpine（固定版本，确保可重复性）
+  postgres:
+    image: postgres:15.5-alpine
+    container_name: mop_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mop_db}
+      POSTGRES_USER: ${POSTGRES_USER:-mop_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mop_password_change_me}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - mop_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mop_user} -d ${POSTGRES_DB:-mop_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis 缓存
+  # 版本锁定：redis:7.4.7-alpine（固定版本，确保可重复性）
+  redis:
+    image: redis:7.4.7-alpine
+    container_name: mop_redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_password_change_me} --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - mop_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Nginx 反向代理（未来使用，当前注释）
+  # 版本锁定：nginx:1.27.3-alpine（固定版本，确保可重复性）
+  # nginx:
+  #   image: nginx:1.27.3-alpine
+  #   container_name: mop_nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "${NGINX_HTTP_PORT:-80}:80"
+  #     - "${NGINX_HTTPS_PORT:-443}:443"
+  #   volumes:
+  #     - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./docker/nginx/certs:/etc/nginx/certs:ro
+  #     - ./static:/var/www/static:ro
+  #     - ./frontend/dist:/var/www/html:ro
+  #   networks:
+  #     - mop_network
+  #   depends_on:
+  #     - backend
+
+  # FastAPI 后端应用（可选，也可以本地运行）
+  # 版本锁定：基于 Python 3.11（在 Dockerfile 中指定）
+  # backend:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: mop_backend
+  #   restart: unless-stopped
+  #   env_file:
+  #     - .env
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   ports:
+  #     - "${BACKEND_PORT:-8000}:8000"
+  #   networks:
+  #     - mop_network
+  #   volumes:
+  #     - ./app:/app/app
+  #     - ./logs:/app/logs
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  mop_network:
+    driver: bridge

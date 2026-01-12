@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOP - 多语言演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        
+        .language-selector {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        
+        .lang-btn {
+            padding: 10px 20px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+        
+        .lang-btn:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .lang-btn.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .demo-text {
+            padding: 15px;
+            background: white;
+            border-left: 4px solid #667eea;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        
+        .demo-text strong {
+            color: #667eea;
+        }
+        
+        .login-section {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .login-section h3 {
+            color: #856404;
+            margin-bottom: 15px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .user-info {
+            background: #e7f3ff;
+            border: 2px solid #2196F3;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .user-info h3 {
+            color: #1976D2;
+            margin-bottom: 10px;
+        }
+        
+        .user-info p {
+            margin: 5px 0;
+            color: #333;
+        }
+        
+        .api-response {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 id="app-name">MOP - 多语言演示</h1>
+            <p id="app-subtitle">国际化（i18n）功能演示页面</p>
+        </div>
+        
+        <div class="content">
+            <!-- 登录区域 -->
+            <div id="login-section" class="login-section">
+                <h3 id="login-title">登录以切换语言偏好</h3>
+                <div class="form-group">
+                    <label id="username-label">用户名或手机号</label>
+                    <input type="text" id="username" placeholder="输入用户名或手机号">
+                </div>
+                <div class="form-group">
+                    <label id="password-label">密码</label>
+                    <input type="password" id="password" placeholder="输入密码">
+                </div>
+                <button class="btn btn-primary" onclick="login()" id="login-btn">登录</button>
+                <div id="login-status"></div>
+            </div>
+            
+            <!-- 用户信息区域 -->
+            <div id="user-info-section" class="user-info hidden">
+                <h3 id="user-info-title">用户信息</h3>
+                <p id="user-details"></p>
+                <button class="btn btn-secondary" onclick="logout()" id="logout-btn">登出</button>
+            </div>
+            
+            <!-- 语言选择区域 -->
+            <div class="section">
+                <h2 id="language-select-title">选择语言</h2>
+                <p id="language-select-desc">点击下方按钮切换语言（已登录用户的语言偏好会保存到数据库）</p>
+                <div class="language-selector" id="language-selector">
+                    <!-- 动态加载语言按钮 -->
+                </div>
+                <div id="current-language" class="demo-text">
+                    <strong id="current-lang-label">当前语言：</strong><span id="current-lang-value">检测中...</span>
+                </div>
+            </div>
+            
+            <!-- 多语言文本演示 -->
+            <div class="section">
+                <h2 id="demo-title">多语言文本演示</h2>
+                <div class="demo-text">
+                    <strong id="app-name-label">应用名称：</strong><span id="app-name-value">-</span>
+                </div>
+                <div class="demo-text">
+                    <strong id="welcome-label">欢迎消息：</strong><span id="welcome-value">-</span>
+                </div>
+                <div class="demo-text">
+                    <strong id="status-label">系统状态：</strong><span id="status-value">-</span>
+                </div>
+            </div>
+            
+            <!-- API 响应演示 -->
+            <div class="section">
+                <h2 id="api-title">API 响应演示</h2>
+                <button class="btn btn-primary" onclick="testHealthCheck()" id="test-health-btn">测试健康检查</button>
+                <button class="btn btn-primary" onclick="testRootEndpoint()" id="test-root-btn">测试根端点</button>
+                <div id="api-response" class="api-response hidden"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000';
+        const API_V1 = `${API_BASE}/api/v1`;
+        let currentLanguage = 'zh_CN';
+        let authToken = localStorage.getItem('auth_token');
+        let currentUser = null;
+        
+        // 翻译资源（简化版，实际应该从 API 获取）
+        const translations = {
+            zh_CN: {
+                appName: '和平信使',
+                appSubtitle: '国际化（i18n）功能演示页面',
+                loginTitle: '登录以切换语言偏好',
+                usernameLabel: '用户名或手机号',
+                passwordLabel: '密码',
+                loginBtn: '登录',
+                logoutBtn: '登出',
+                userInfoTitle: '用户信息',
+                languageSelectTitle: '选择语言',
+                languageSelectDesc: '点击下方按钮切换语言（已登录用户的语言偏好会保存到数据库）',
+                currentLangLabel: '当前语言：',
+                demoTitle: '多语言文本演示',
+                appNameLabel: '应用名称：',
+                welcomeLabel: '欢迎消息：',
+                statusLabel: '系统状态：',
+                apiTitle: 'API 响应演示',
+                testHealthBtn: '测试健康检查',
+                testRootBtn: '测试根端点',
+                loginSuccess: '登录成功！',
+                loginFailed: '登录失败：',
+                logoutSuccess: '已登出',
+                languageSwitched: '语言已切换为：',
+                loading: '加载中...'
+            },
+            en_US: {
+                appName: 'MOP',
+                appSubtitle: 'Internationalization (i18n) Demo Page',
+                loginTitle: 'Login to Switch Language Preference',
+                usernameLabel: 'Username or Phone',
+                passwordLabel: 'Password',
+                loginBtn: 'Login',
+                logoutBtn: 'Logout',
+                userInfoTitle: 'User Information',
+                languageSelectTitle: 'Select Language',
+                languageSelectDesc: 'Click buttons below to switch language (logged-in users\' preferences will be saved to database)',
+                currentLangLabel: 'Current Language:',
+                demoTitle: 'Multilingual Text Demo',
+                appNameLabel: 'App Name:',
+                welcomeLabel: 'Welcome Message:',
+                statusLabel: 'System Status:',
+                apiTitle: 'API Response Demo',
+                testHealthBtn: 'Test Health Check',
+                testRootBtn: 'Test Root Endpoint',
+                loginSuccess: 'Login successful!',
+                loginFailed: 'Login failed:',
+                logoutSuccess: 'Logged out',
+                languageSwitched: 'Language switched to:',
+                loading: 'Loading...'
+            }
+        };
+        
+        // 初始化
+        async function init() {
+            // 检测当前语言
+            await detectLanguage();
+            // 加载支持的语言列表
+            await loadLanguages();
+            // 更新 UI
+            updateUI();
+            // 检查登录状态
+            if (authToken) {
+                await checkUserInfo();
+            }
+        }
+        
+        // 检测语言
+        async function detectLanguage() {
+            try {
+                const response = await fetch(`${API_V1}/i18n/current`, {
+                    headers: {
+                        'Accept-Language': navigator.language || 'zh-CN'
+                    }
+                });
+                const data = await response.json();
+                currentLanguage = data.code || 'zh_CN';
+            } catch (error) {
+                console.error('Language detection failed:', error);
+                currentLanguage = 'zh_CN';
+            }
+        }
+        
+        // 加载支持的语言列表
+        async function loadLanguages() {
+            try {
+                const response = await fetch(`${API_V1}/i18n/languages`);
+                const languages = await response.json();
+                const selector = document.getElementById('language-selector');
+                selector.innerHTML = '';
+                
+                languages.forEach(lang => {
+                    const btn = document.createElement('button');
+                    btn.className = 'lang-btn';
+                    btn.textContent = `${lang.native_name} (${lang.name})`;
+                    btn.onclick = () => switchLanguage(lang.code);
+                    if (lang.code === currentLanguage) {
+                        btn.classList.add('active');
+                    }
+                    selector.appendChild(btn);
+                });
+            } catch (error) {
+                console.error('Failed to load languages:', error);
+            }
+        }
+        
+        // 切换语言
+        async function switchLanguage(langCode) {
+            currentLanguage = langCode;
+            
+            // 如果已登录，保存到数据库
+            if (authToken && currentUser) {
+                try {
+                    const response = await fetch(`${API_V1}/i18n/switch`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${authToken}`
+                        },
+                        body: JSON.stringify({ language: langCode })
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        showStatus('login-status', data.message, 'success');
+                    }
+                } catch (error) {
+                    console.error('Failed to save language preference:', error);
+                }
+            }
+            
+            // 更新 UI
+            updateUI();
+            // 重新加载语言按钮状态
+            await loadLanguages();
+            // 刷新 API 演示
+            await testHealthCheck();
+            await testRootEndpoint();
+        }
+        
+        // 更新 UI 文本
+        function updateUI() {
+            const t = translations[currentLanguage] || translations.zh_CN;
+            
+            document.getElementById('app-name').textContent = t.appName;
+            document.getElementById('app-subtitle').textContent = t.appSubtitle;
+            document.getElementById('login-title').textContent = t.loginTitle;
+            document.getElementById('username-label').textContent = t.usernameLabel;
+            document.getElementById('password-label').textContent = t.passwordLabel;
+            document.getElementById('login-btn').textContent = t.loginBtn;
+            document.getElementById('logout-btn').textContent = t.logoutBtn;
+            document.getElementById('user-info-title').textContent = t.userInfoTitle;
+            document.getElementById('language-select-title').textContent = t.languageSelectTitle;
+            document.getElementById('language-select-desc').textContent = t.languageSelectDesc;
+            document.getElementById('current-lang-label').textContent = t.currentLangLabel;
+            document.getElementById('current-lang-value').textContent = currentLanguage;
+            document.getElementById('demo-title').textContent = t.demoTitle;
+            document.getElementById('app-name-label').textContent = t.appNameLabel;
+            document.getElementById('welcome-label').textContent = t.welcomeLabel;
+            document.getElementById('status-label').textContent = t.statusLabel;
+            document.getElementById('api-title').textContent = t.apiTitle;
+            document.getElementById('test-health-btn').textContent = t.testHealthBtn;
+            document.getElementById('test-root-btn').textContent = t.testRootBtn;
+        }
+        
+        // 登录
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                showStatus('login-status', 'Please enter username and password', 'error');
+                return;
+            }
+            
+            try {
+                const formData = new URLSearchParams();
+                formData.append('username', username);
+                formData.append('password', password);
+                
+                const response = await fetch(`${API_V1}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Accept-Language': currentLanguage.replace('_', '-')
+                    },
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    authToken = data.access_token;
+                    localStorage.setItem('auth_token', authToken);
+                    await checkUserInfo();
+                    showStatus('login-status', translations[currentLanguage].loginSuccess, 'success');
+                } else {
+                    const error = await response.json();
+                    showStatus('login-status', `${translations[currentLanguage].loginFailed} ${error.detail}`, 'error');
+                }
+            } catch (error) {
+                showStatus('login-status', `${translations[currentLanguage].loginFailed} ${error.message}`, 'error');
+            }
+        }
+        
+        // 登出
+        function logout() {
+            authToken = null;
+            currentUser = null;
+            localStorage.removeItem('auth_token');
+            document.getElementById('login-section').classList.remove('hidden');
+            document.getElementById('user-info-section').classList.add('hidden');
+            showStatus('login-status', translations[currentLanguage].logoutSuccess, 'info');
+        }
+        
+        // 检查用户信息
+        async function checkUserInfo() {
+            if (!authToken) return;
+            
+            try {
+                const response = await fetch(`${API_V1}/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Accept-Language': currentLanguage.replace('_', '-')
+                    }
+                });
+                
+                if (response.ok) {
+                    currentUser = await response.json();
+                    document.getElementById('user-details').innerHTML = `
+                        <strong>ID:</strong> ${currentUser.id}<br>
+                        <strong>Username:</strong> ${currentUser.username || 'N/A'}<br>
+                        <strong>Phone:</strong> ${currentUser.phone}<br>
+                        <strong>Nickname:</strong> ${currentUser.nickname || 'N/A'}
+                    `;
+                    document.getElementById('login-section').classList.add('hidden');
+                    document.getElementById('user-info-section').classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Failed to get user info:', error);
+            }
+        }
+        
+        // 测试健康检查
+        async function testHealthCheck() {
+            try {
+                const response = await fetch(`${API_BASE}/health`, {
+                    headers: {
+                        'Accept-Language': currentLanguage.replace('_', '-')
+                    }
+                });
+                const data = await response.json();
+                showApiResponse(data);
+            } catch (error) {
+                showApiResponse({ error: error.message });
+            }
+        }
+        
+        // 测试根端点
+        async function testRootEndpoint() {
+            try {
+                const response = await fetch(`${API_BASE}/`, {
+                    headers: {
+                        'Accept-Language': currentLanguage.replace('_', '-')
+                    }
+                });
+                const data = await response.json();
+                showApiResponse(data);
+                
+                // 更新演示文本
+                document.getElementById('app-name-value').textContent = data.app_name || '-';
+                document.getElementById('welcome-value').textContent = data.message || '-';
+            } catch (error) {
+                showApiResponse({ error: error.message });
+            }
+        }
+        
+        // 显示 API 响应
+        function showApiResponse(data) {
+            const responseDiv = document.getElementById('api-response');
+            responseDiv.classList.remove('hidden');
+            responseDiv.textContent = JSON.stringify(data, null, 2);
+        }
+        
+        // 显示状态消息
+        function showStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.className = `status ${type}`;
+            element.textContent = message;
+            element.style.display = 'block';
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    element.style.display = 'none';
+                }, 3000);
+            }
+        }
+        
+        // 页面加载时初始化
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

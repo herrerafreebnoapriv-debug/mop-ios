@@ -1,0 +1,49 @@
+# FastAPI 后端依赖
+# 版本策略：使用主流稳定版本，不追最新（如 FastAPI 最新 0.128.0，但使用稳定版 0.115.14）
+fastapi==0.115.14
+uvicorn[standard]==0.32.1
+python-multipart==0.0.12
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-dotenv==1.0.1
+
+# 数据库相关
+# SQLAlchemy 2.0.x 稳定版本（最新 2.0.45，使用稳定版 2.0.38）
+sqlalchemy==2.0.38
+asyncpg==0.30.0
+psycopg2-binary==2.9.10
+alembic==1.14.0
+
+# Redis 相关
+# Redis 客户端：使用 5.0.x 系列稳定版（最新 7.1.0，但遵循稳定策略使用 5.0.8）
+# 注意：Redis 服务器版本在 docker-compose.yml 中为 7.4.7-alpine（这是服务器版本，不是客户端库）
+redis==5.0.8
+# hiredis==2.3.2  # 可选：性能优化库，需要 C++ 编译器。Windows 开发可跳过，Ubuntu 22.04 部署时可安装
+
+# JWT 和加密
+pyjwt==2.9.0
+cryptography==43.0.3
+
+# Socket.io 支持
+python-socketio==5.11.4
+aiohttp==3.11.10
+
+# 工具库
+# Pydantic 2.x 稳定版本（最新可能有 2.x，使用稳定版）
+pydantic==2.9.2
+pydantic-settings==2.6.1
+email-validator==2.2.0
+
+# 日志和监控
+loguru==0.7.3
+
+# 国际化支持（使用 JSON 文件，无需额外依赖）
+
+# 二维码生成
+qrcode[pil]==7.4.2
+
+# 开发工具
+pytest==8.3.4
+pytest-asyncio==0.24.0
+black==24.10.0
+flake8==7.1.1

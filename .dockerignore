@@ -1,0 +1,57 @@
+# Docker 忽略文件
+# 排除不需要的文件，减小镜像大小
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# 环境
+.env
+.venv
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志
+logs/
+*.log
+
+# 数据库
+*.db
+*.sqlite
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# Git
+.git/
+.gitignore
+
+# 文档（可选，如果不需要在镜像中）
+*.md
+docs/
+
+# 测试
+tests/
+test_*.py
+*_test.py
+
+# 但保留必要的文件
+!docker/images/
+!docker-compose*.yml
+!jitsi.env.example
+!scripts/
