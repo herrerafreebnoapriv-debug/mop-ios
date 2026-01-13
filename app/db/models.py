@@ -203,3 +203,100 @@ class OperationLog(Base):
     __table_args__ = (
         {"comment": "操作日志表"},
     )
+
+
+class Message(Base):
+    """聊天消息模型"""
+    __tablename__ = "messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    sender_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=False, index=True, comment="发送者用户ID")
+    receiver_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True, comment="接收者用户ID（点对点消息）")
+    room_id = Column(Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=True, index=True, comment="房间ID（房间群聊消息）")
+    message = Column(Text, nullable=False, comment="消息内容")
+    message_type = Column(String(20), nullable=False, default="text", index=True, comment="消息类型：text/image/file/audio/system")
+    is_read = Column(Boolean, nullable=False, default=False, index=True, comment="是否已读")
+    read_at = Column(DateTime, nullable=True, comment="已读时间")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True, comment="发送时间")
+    
+    # 关系
+    sender = relationship("User", foreign_keys=[sender_id])
+    receiver = relationship("User", foreign_keys=[receiver_id])
+    room = relationship("Room")
+    
+    __table_args__ = (
+        {"comment": "聊天消息表"},
+    )
+
+
+class Friendship(Base):
+    """好友关系模型"""
+    __tablename__ = "friendships"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True, comment="用户ID")
+    friend_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True, comment="好友ID")
+    status = Column(String(20), nullable=False, default="pending", index=True, comment="状态：pending（待确认）/accepted（已接受）/blocked（已屏蔽）")
+    note = Column(String(200), nullable=True, comment="备注（用户对好友的备注名称）")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, comment="创建时间")
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow, comment="更新时间")
+    
+    # 关系
+    user = relationship("User", foreign_keys=[user_id])
+    friend = relationship("User", foreign_keys=[friend_id])
+    
+    __table_args__ = (
+        {"comment": "好友关系表"},
+    )
+
+
+class Notification(Base):
+    """通知模型"""
+    __tablename__ = "notifications"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True, comment="接收者用户ID")
+    type = Column(String(50), nullable=False, index=True, comment="通知类型：friend_request/message/system等")
+    title = Column(String(200), nullable=False, comment="通知标题")
+    content = Column(Text, nullable=True, comment="通知内容")
+    related_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, comment="相关用户ID")
+    related_resource_id = Column(Integer, nullable=True, comment="相关资源ID")
+    related_resource_type = Column(String(50), nullable=True, comment="相关资源类型")
+    is_read = Column(Boolean, nullable=False, default=False, index=True, comment="是否已读")
+    read_at = Column(DateTime, nullable=True, comment="已读时间")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True, comment="创建时间")
+    
+    # 关系
+    user = relationship("User", foreign_keys=[user_id])
+    related_user = relationship("User", foreign_keys=[related_user_id])
+    
+    __table_args__ = (
+        {"comment": "通知表"},
+    )
+
+
+class File(Base):
+    """文件模型"""
+    __tablename__ = "files"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    uploader_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=False, index=True, comment="上传者用户ID")
+    filename = Column(String(255), nullable=False, comment="原始文件名")
+    stored_filename = Column(String(255), nullable=False, unique=True, index=True, comment="存储的文件名（唯一）")
+    file_path = Column(String(500), nullable=False, comment="文件存储路径")
+    file_url = Column(String(500), nullable=False, comment="文件访问URL")
+    file_type = Column(String(50), nullable=False, index=True, comment="文件类型：image/audio/video/document等")
+    mime_type = Column(String(100), nullable=False, comment="MIME类型")
+    file_size = Column(Integer, nullable=False, comment="文件大小（字节）")
+    duration = Column(Integer, nullable=True, comment="时长（秒，用于音频/视频）")
+    width = Column(Integer, nullable=True, comment="宽度（像素，用于图片/视频）")
+    height = Column(Integer, nullable=True, comment="高度（像素，用于图片/视频）")
+    is_public = Column(Boolean, nullable=False, default=False, index=True, comment="是否公开（公开文件可直接通过URL访问）")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True, comment="上传时间")
+    
+    # 关系
+    uploader = relationship("User")
+    
+    __table_args__ = (
+        {"comment": "文件表"},
+    )

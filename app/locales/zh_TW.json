@@ -141,14 +141,50 @@
     "room_mismatch": "QR code does not match room ID"
   },
   "room": {
-    "not_found": "Room not found",
-    "id_exists": "Room ID {room_id} already exists",
-    "invalid_id_format": "Invalid room ID format: {room_id}",
-    "no_permission": "No permission to operate this room",
-    "inactive": "Room is inactive",
-    "full": "Room is full (max {max_occupants} participants)",
-    "create_success": "Room created successfully",
-    "update_success": "Room updated successfully",
-    "join_success": "Successfully joined room"
+    "not_found": "房間未找到",
+    "id_exists": "房間ID {room_id} 已存在",
+    "invalid_id_format": "無效的房間ID格式：{room_id}",
+    "no_permission": "沒有權限操作此房間",
+    "inactive": "房間未激活",
+    "full": "房間已滿（最多 {max_occupants} 人）",
+    "create_success": "房間創建成功",
+    "update_success": "房間更新成功",
+    "join_success": "成功加入房間",
+    "not_participant": "您不是此房間的參與者"
+  },
+  "chat": {
+    "must_specify_receiver_or_room": "必須指定接收者ID（點對點消息）或房間ID（房間群聊）",
+    "cannot_specify_both": "不能同時指定接收者ID和房間ID",
+    "cannot_send_to_self": "不能發送消息給自己",
+    "receiver_disabled": "接收者帳號已被禁用",
+    "file_id_required": "文件消息必須提供文件ID",
+    "message_required": "文本消息必須提供消息內容"
+  },
+  "friends": {
+    "cannot_add_self": "不能添加自己為好友",
+    "user_disabled": "該用戶已被禁用",
+    "already_friends": "已經是好友關係",
+    "blocked": "該用戶已被屏蔽",
+    "request_already_sent": "好友請求已發送，請等待對方回應",
+    "invalid_status": "無效的狀態值",
+    "request_not_found": "未找到好友請求",
+    "not_found": "未找到好友關係",
+    "new_request": "新的好友請求",
+    "request_sent": "好友請求已發送",
+    "request_accepted": "好友請求已接受",
+    "accepted_success": "已接受好友請求",
+    "blocked_success": "已屏蔽該用戶",
+    "removed": "已刪除好友"
+  },
+  "files": {
+    "not_found": "文件未找到",
+    "invalid_type": "不支持的文件類型",
+    "too_large": "文件大小超過限制（最大 {max_size}MB）",
+    "upload_failed": "文件上傳失敗",
+    "access_denied": "無權限訪問該文件"
+  },
+  "notifications": {
+    "not_found": "通知未找到",
+    "deleted": "通知已刪除"
   }
 }
