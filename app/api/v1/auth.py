@@ -33,9 +33,9 @@ class UserRegister(BaseModel):
     """用户注册请求模型"""
     phone: str = Field(..., min_length=11, max_length=20, description="手机号")
     username: str = Field(..., min_length=3, max_length=100, description="用户名")
-    password: str = Field(..., min_length=6, max_length=72, description="密码")
+    password: str = Field(..., min_length=6, max_length=12, description="密码（6-12位，支持纯数字和复杂组合）")
     nickname: str = Field(None, max_length=100, description="昵称")
-    invitation_code: str = Field(None, max_length=50, description="邀请码")
+    invitation_code: str = Field(..., min_length=1, max_length=50, description="邀请码（必填）")
     agreed_to_terms: bool = Field(..., description="是否同意用户须知和免责声明")
 
 
@@ -167,7 +167,7 @@ async def agree_terms(
     }
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     user_data: UserRegister,
     request: Request,
@@ -177,9 +177,10 @@ async def register(
     用户注册
     
     注意：根据 Spec.txt，首次注册需要同意免责声明
+    注册时强制要求邀请码，且仅能创建普通用户角色
     """
     from sqlalchemy import select
-    from datetime import datetime
+    from datetime import datetime, timezone
     
     # 检测语言
     lang = get_language_from_request(request)
@@ -208,48 +209,52 @@ async def register(
                 detail=i18n.get("auth.register.username_exists", lang)
             )
     
-    # 验证邀请码（如果提供）
-    if user_data.invitation_code:
-        from app.db.models import InvitationCode
-        code_result = await db.execute(
-            select(InvitationCode).where(InvitationCode.code == user_data.invitation_code.upper())
+    # 验证邀请码（必填）
+    if not user_data.invitation_code or not user_data.invitation_code.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=i18n.get("auth.register.invitation_code_required", lang) or "邀请码为必填项"
         )
-        invitation_code = code_result.scalar_one_or_none()
-        
-        if invitation_code is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=i18n.get("invitation.invalid", lang)
-            )
-        
-        # 检查是否已撤回或未激活
-        if invitation_code.is_revoked or not invitation_code.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=i18n.get("invitation.revoked", lang)
-            )
-        
-        # 检查是否过期
-        from datetime import timezone
-        if invitation_code.expires_at and invitation_code.expires_at < datetime.now(timezone.utc):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=i18n.get("invitation.expired", lang)
-            )
-        
-        # 检查是否达到最大使用次数
-        if invitation_code.used_count >= invitation_code.max_uses:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=i18n.get("invitation.max_uses_reached", lang)
-            )
-        
-        # 增加使用次数
-        invitation_code.used_count += 1
-        await db.flush()  # 先刷新，但不提交
+    
+    from app.db.models import InvitationCode
+    code_result = await db.execute(
+        select(InvitationCode).where(InvitationCode.code == user_data.invitation_code.upper().strip())
+    )
+    invitation_code = code_result.scalar_one_or_none()
+    
+    if invitation_code is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=i18n.get("invitation.invalid", lang)
+        )
+    
+    # 检查是否已撤回或未激活
+    if invitation_code.is_revoked or not invitation_code.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=i18n.get("invitation.revoked", lang)
+        )
+    
+    # 检查是否过期
+    if invitation_code.expires_at and invitation_code.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=i18n.get("invitation.expired", lang)
+        )
+    
+    # 检查是否达到最大使用次数
+    if invitation_code.used_count >= invitation_code.max_uses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=i18n.get("invitation.max_uses_reached", lang)
+        )
+    
+    # 增加使用次数
+    invitation_code.used_count += 1
+    await db.flush()  # 先刷新，但不提交
     
     # 创建新用户（使用检测到的语言作为默认语言）
-    from datetime import timezone
+    # 注册时仅能创建普通用户，角色固定为 "user"，is_admin 固定为 False
     now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
     
     new_user = User(
@@ -257,8 +262,10 @@ async def register(
         username=user_data.username,
         password_hash=get_password_hash(user_data.password),
         nickname=user_data.nickname,
-        invitation_code=user_data.invitation_code,
+        invitation_code=user_data.invitation_code.upper().strip(),  # 统一转换为大写并去除空格
         language=lang,  # 设置用户语言偏好
+        role="user",  # 固定为普通用户角色
+        is_admin=False,  # 固定为非管理员
         agreed_at=now_naive if user_data.agreed_to_terms else None  # 设置同意时间
     )
     
@@ -266,7 +273,23 @@ async def register(
     await db.commit()
     await db.refresh(new_user)
     
-    return new_user
+    # 注册成功后自动登录：更新用户状态并生成 token
+    new_user.last_active_at = now_naive
+    new_user.is_online = True
+    new_user.updated_at = now_naive
+    await db.commit()
+    
+    # 生成令牌（sub必须是字符串）
+    from app.core.security import create_access_token, create_refresh_token
+    access_token = create_access_token(data={"sub": str(new_user.id)})
+    refresh_token = create_refresh_token(data={"sub": str(new_user.id)})
+    
+    # 返回 token，实现注册后自动登录
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer"
+    }
 
 
 @router.post("/login", response_model=TokenResponse)

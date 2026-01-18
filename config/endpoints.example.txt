@@ -1,0 +1,10 @@
+# 故障转移域名列表内容
+DomainList:
+log.ym1.com
+ym2.xyz
+xx,ym3.net
+
+# 故障转移IP列表内容
+IPList:
+12.34.56.78
+9.10.11.12

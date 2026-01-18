@@ -122,6 +122,7 @@ class Room(Base):
     created_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True, comment="创建者用户ID")
     max_occupants = Column(Integer, nullable=False, default=10, comment="最大人数")
     is_active = Column(Boolean, nullable=False, default=True, comment="是否激活")
+    is_temporary = Column(Boolean, nullable=False, default=False, index=True, comment="是否为临时房间（点对点通话）")
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow, comment="创建时间")
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow, comment="更新时间")
     
@@ -299,4 +300,30 @@ class File(Base):
     
     __table_args__ = (
         {"comment": "文件表"},
+    )
+
+
+class Call(Base):
+    """通话记录模型"""
+    __tablename__ = "calls"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    call_type = Column(String(20), nullable=False, index=True, comment="通话类型：video/audio")
+    call_status = Column(String(20), nullable=False, default="initiated", index=True, comment="通话状态：initiated/ringing/connected/ended/rejected/missed")
+    caller_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=False, index=True, comment="发起者用户ID")
+    callee_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True, comment="接收者用户ID（点对点通话）")
+    room_id = Column(Integer, ForeignKey("rooms.id", ondelete="SET NULL"), nullable=True, index=True, comment="房间ID（房间通话）")
+    jitsi_room_id = Column(String(100), nullable=False, index=True, comment="Jitsi房间ID（用于加入Jitsi会议）")
+    start_time = Column(DateTime, nullable=True, comment="通话开始时间")
+    end_time = Column(DateTime, nullable=True, comment="通话结束时间")
+    duration = Column(Integer, nullable=True, comment="通话时长（秒）")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True, comment="创建时间（发起时间）")
+    
+    # 关系
+    caller = relationship("User", foreign_keys=[caller_id])
+    callee = relationship("User", foreign_keys=[callee_id])
+    room = relationship("Room")
+    
+    __table_args__ = (
+        {"comment": "通话记录表"},
     )

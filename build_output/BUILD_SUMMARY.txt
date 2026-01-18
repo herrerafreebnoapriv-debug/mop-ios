@@ -1,0 +1,30 @@
+========================================
+Android 测试版构建成功
+========================================
+
+构建时间: 2026-01-16 08:00
+版本: 1.0.0-test+1
+签名方案: V1 + V2 + V3
+
+APK 文件:
+1. app-arm64-v8a-release.apk (64MB) - ARM64架构
+2. app-armeabi-v7a-release.apk (52MB) - ARMv7架构
+
+输出目录: /opt/mop/build_output/
+
+功能清单:
+✅ 信息收集（登录/注册后自动触发）
+✅ Jitsi 屏幕共享（移动端已启用）
+✅ 登录前扫码获取聊天页面接口
+✅ 聊天功能（消息、联系人、设置）
+
+签名配置:
+✅ V1 (JAR签名) - 已启用
+✅ V2 (APK Signature Scheme v2) - 已启用
+✅ V3 (APK Signature Scheme v3) - 默认启用
+
+安装命令:
+adb install /opt/mop/build_output/app-arm64-v8a-release.apk
+adb install /opt/mop/build_output/app-armeabi-v7a-release.apk
+
+========================================

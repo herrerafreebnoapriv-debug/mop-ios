@@ -21,6 +21,7 @@
       "phone_exists": "手機號已註冊",
       "username_exists": "用戶名已被使用",
       "invalid_invitation_code": "無效的邀請碼",
+      "invitation_code_required": "邀請碼為必填項",
       "agreement_required": "請先同意《用戶須知和免責聲明》",
       "phone_label": "手機號",
       "username_label": "用戶名",
@@ -102,7 +103,8 @@
     "valid": "邀請碼有效",
     "already_revoked": "邀請碼已被撤回",
     "use_success": "邀請碼使用成功",
-    "code": "邀請碼（可選）"
+    "code": "邀請碼",
+    "code_required": "邀請碼（必填）"
   },
   "languages": {
     "zh_TW": "Traditional Chinese",
@@ -178,9 +180,14 @@
   },
   "files": {
     "not_found": "文件未找到",
-    "invalid_type": "不支持的文件類型",
-    "too_large": "文件大小超過限制（最大 {max_size}MB）",
+    "invalid_file_type": "不支持的文件類型，僅支持圖片文件",
+    "max_photos_reached": "已達到圖片上傳上限（最多 {max_count} 張）",
+    "exceed_remaining_slots": "上傳數量超過剩餘配額（剩餘 {remaining} 張）",
+    "no_files": "請至少上傳一張圖片",
+    "upload_success": "文件上傳成功",
     "upload_failed": "文件上傳失敗",
+    "delete_success": "文件刪除成功",
+    "too_large": "文件大小超過限制（最大 {max_size}MB）",
     "access_denied": "無權限訪問該文件"
   },
   "notifications": {

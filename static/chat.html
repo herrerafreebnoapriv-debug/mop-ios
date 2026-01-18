@@ -1188,6 +1188,9 @@
                 return;
             }
             
+            // 初始化页面显示（确保按钮正确显示）
+            switchPage('messages');
+            
             // 加载用户信息
             await loadUserInfo();
             
@@ -1371,6 +1374,28 @@
                     alert('Socket.io 错误: ' + error.message);
                 }
             });
+            
+            // 监听消息已读状态更新（接收者标记已读后，通知发送者）
+            socket.on('message_read', (data) => {
+                console.log('✓ 收到消息已读通知:', data);
+                // data: { message_id, read_by, read_at }
+                if (data && data.message_id) {
+                    // 使用优化后的更新函数，只更新单个消息，不重新渲染整个列表
+                    updateMessageReadStatus(data.message_id, data.read_at);
+                }
+            });
+            
+            // 监听消息已读确认（自己标记的消息）
+            socket.on('message_read_confirmed', (data) => {
+                console.log('✓ 消息已读标记确认:', data);
+                // data: { updated_count, message_ids, timestamp }
+                if (data && data.message_ids) {
+                    // 批量更新消息的已读状态
+                    data.message_ids.forEach(msgId => {
+                        updateMessageReadStatus(msgId, data.timestamp);
+                    });
+                }
+            });
         }
         
         // 切换页面
@@ -1381,7 +1406,15 @@
             document.querySelectorAll('.nav-item').forEach(item => {
                 item.classList.remove('active');
             });
-            event.currentTarget.classList.add('active');
+            
+            // 通过页面名找到对应的导航项并激活
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(item => {
+                const onclick = item.getAttribute('onclick');
+                if (onclick && onclick.includes(`'${page}'`)) {
+                    item.classList.add('active');
+                }
+            });
             
             // 更新页面显示
             document.querySelectorAll('.page').forEach(p => {
@@ -1826,6 +1859,9 @@
                 return;
             }
             
+            // 保存当前滚动位置
+            const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
+            
             container.innerHTML = chatMessages.map(msg => {
                 const isSent = msg.sender_id === currentUser.id;
                 const time = formatTime(msg.created_at);
@@ -1842,8 +1878,29 @@
                 `;
             }).join('');
             
-            // 滚动到底部
-            container.scrollTop = container.scrollHeight;
+            // 如果之前在底部，滚动到底部；否则保持当前位置
+            if (wasAtBottom) {
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+        
+        // 更新单个消息的已读状态（不重新渲染整个列表，提高性能）
+        function updateMessageReadStatus(messageId, readAt) {
+            const message = chatMessages.find(msg => msg.id === messageId);
+            if (message) {
+                message.is_read = true;
+                message.read_at = readAt;
+                
+                // 更新DOM中的消息状态显示
+                const messageElement = document.querySelector(`[data-message-id="${messageId}"]`);
+                if (messageElement) {
+                    const statusElement = messageElement.querySelector('.chat-message-status');
+                    if (statusElement) {
+                        statusElement.textContent = '已读';
+                        statusElement.className = 'chat-message-status read';
+                    }
+                }
+            }
         }
         
         // 发送聊天消息

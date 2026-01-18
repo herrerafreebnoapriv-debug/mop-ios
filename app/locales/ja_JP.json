@@ -17,24 +17,43 @@
   },
   "auth": {
     "register": {
-      "success": "Registration successful",
-      "phone_exists": "Phone number already registered",
-      "username_exists": "Username already in use",
-      "invalid_invitation_code": "Invalid invitation code",
-      "agreement_required": "Please agree to the User Agreement and Disclaimer first"
+      "success": "登録成功",
+      "phone_exists": "電話番号は既に登録されています",
+      "username_exists": "ユーザー名は既に使用されています",
+      "invalid_invitation_code": "無効な招待コード",
+      "invitation_code_required": "招待コードは必須です",
+      "agreement_required": "まずユーザー規約と免責事項に同意してください",
+      "phone_label": "電話番号",
+      "username_label": "ユーザー名",
+      "password_label": "パスワード（6-12桁）",
+      "button": "登録",
+      "has_account": "アカウントをお持ちですか？ログイン",
+      "title": "登録 - MOP",
+      "registering": "登録中...",
+      "failed": "登録に失敗しました"
     },
     "login": {
-      "success": "Login successful",
-      "failed": "Phone/username or password incorrect",
-      "agreement_required": "Please agree to the User Agreement and Disclaimer first",
-      "account_disabled": "Account has been disabled"
+      "success": "ログイン成功",
+      "failed": "電話番号/ユーザー名またはパスワードが正しくありません",
+      "agreement_required": "まずユーザー規約と免責事項に同意してください",
+      "account_disabled": "アカウントは無効化されています",
+      "phone_username_label": "電話番号/ユーザー名",
+      "password_label": "パスワード",
+      "button": "ログイン",
+      "no_account": "アカウントをお持ちでないですか？今すぐ登録",
+      "title": "ログイン - MOP",
+      "logging_in": "ログイン中...",
+      "success_msg": "ログイン成功！リダイレクト中...",
+      "failed_msg": "ログインに失敗しました。もう一度お試しください"
     },
     "agreement": {
-      "title": "User Agreement and Disclaimer",
-      "content": "Welcome to MOP (Messenger of Peace) service. Before using this service, please carefully read the following terms:\n\n1. Service Description\nThis service is a private communication control system that provides secure and private communication functions.\n\n2. User Responsibilities\n(1) Users should properly keep account information and must not transfer, sell, or lend accounts to others.\n(2) Users must not use this service to engage in illegal or irregular activities.\n(3) Users should ensure the authenticity and accuracy of the information provided.\n\n3. Privacy Protection\n(1) We promise to protect user privacy and will not disclose user information without authorization.\n(2) User data is only used to provide and improve services and will not be used for other commercial purposes.\n\n4. Disclaimer\n(1) Users shall bear any legal liability arising from violations of laws, regulations, or this agreement.\n(2) We are not responsible for service interruptions or data loss caused by force majeure, network failures, etc.\n(3) We are not responsible for any losses incurred by users due to the use of this service.\n\n5. Agreement Modification\nWe reserve the right to modify this agreement at any time. The modified agreement will be published on the platform. Continued use of the service is deemed acceptance of the modified agreement.\n\n6. Others\n(1) We reserve the final right to interpret this agreement.\n(2) If disputes arise between the parties, they should be resolved through friendly consultation; if consultation fails, they may file a lawsuit with the people's court with jurisdiction.\n\nPlease read and fully understand the above terms before using the service. Clicking \"I have read and agree\" means you have fully understood and agreed to accept all the contents of this agreement.",
-      "checkbox_label": "I have read and agree to the User Agreement and Disclaimer",
-      "agree_success": "User Agreement and Disclaimer agreed",
-      "agree_failed": "Failed to agree"
+      "title": "ユーザー規約と免責事項",
+      "content": "MOP（Messenger of Peace）サービスへようこそ。本サービスをご利用になる前に、以下の条項をよくお読みください：\n\n1. サービス説明\n本サービスは、安全でプライベートな通信機能を提供するプライベート通信管理システムです。\n\n2. ユーザーの責任\n(1) ユーザーはアカウント情報を適切に保管し、他人に譲渡、販売、または貸与してはなりません。\n(2) ユーザーは本サービスを使用して違法または不正な活動に従事してはなりません。\n(3) ユーザーは提供する情報の真実性と正確性を確保する必要があります。\n\n3. プライバシー保護\n(1) 当社はユーザーのプライバシーを保護し、許可なくユーザー情報を開示しないことを約束します。\n(2) ユーザーデータはサービスの提供と改善にのみ使用され、他の商業目的には使用されません。\n\n4. 免責事項\n(1) ユーザーは、法律、規制、または本規約に違反することから生じる法的責任を負うものとします。\n(2) 当社は、不可抗力、ネットワーク障害などによるサービス中断やデータ損失について責任を負いません。\n(3) 当社は、ユーザーが本サービスを使用することにより生じた損失について責任を負いません。\n\n5. 規約の変更\n当社は、いつでも本規約を変更する権利を留保します。変更された規約はプラットフォーム上で公開されます。サービスの継続使用は、変更された規約の受諾とみなされます。\n\n6. その他\n(1) 当社は本規約の最終的な解釈権を留保します。\n(2) 当事者間に紛争が生じた場合、友好的な協議により解決すべきです。協議が失敗した場合、管轄権のある人民法院に訴訟を提起することができます。\n\nサービスを使用する前に、上記の条項をよく読み、十分に理解してください。「同意する」をクリックすることは、本規約のすべての内容を理解し、同意したことを意味します。",
+      "checkbox_label": "ユーザー規約と免責事項を読み、同意しました",
+      "agree_success": "ユーザー規約と免責事項に同意しました",
+      "agree_failed": "同意に失敗しました",
+      "loading": "読み込み中...",
+      "loading_failed": "免責事項の読み込みに失敗しました。ページを更新してもう一度お試しください。"
     },
     "logout": {
       "success": "Logout successful"
@@ -49,10 +68,11 @@
     }
   },
   "user": {
-    "not_found": "User not found",
-    "update_success": "User information updated successfully",
-    "delete_success": "User deleted successfully",
-    "cannot_delete_self": "Cannot delete your own account"
+    "not_found": "ユーザーが見つかりません",
+    "update_success": "ユーザー情報が正常に更新されました",
+    "delete_success": "ユーザーが正常に削除されました",
+    "cannot_delete_self": "自分のアカウントを削除することはできません",
+    "nickname": "ニックネーム（任意）"
   },
   "device": {
     "not_found": "Device not found",
@@ -72,16 +92,18 @@
     "switch_success": "Language switched successfully"
   },
   "invitation": {
-    "code_exists": "Invitation code {code} already exists",
-    "generate_failed": "Failed to generate invitation code, please try again",
-    "not_found": "Invitation code not found",
-    "invalid": "Invalid invitation code",
-    "revoked": "Invitation code has been revoked",
-    "expired": "Invitation code has expired",
-    "max_uses_reached": "Invitation code has reached maximum uses",
-    "valid": "Invitation code is valid",
-    "already_revoked": "Invitation code has already been revoked",
-    "use_success": "Invitation code used successfully"
+    "code_exists": "招待コード {code} は既に存在します",
+    "generate_failed": "招待コードの生成に失敗しました。もう一度お試しください",
+    "not_found": "招待コードが見つかりません",
+    "invalid": "無効な招待コード",
+    "revoked": "招待コードは撤回されました",
+    "expired": "招待コードの有効期限が切れています",
+    "max_uses_reached": "招待コードは最大使用回数に達しました",
+    "valid": "招待コードは有効です",
+    "already_revoked": "招待コードは既に撤回されています",
+    "use_success": "招待コードが正常に使用されました",
+    "code": "招待コード",
+    "code_required": "招待コード（必須）"
   },
   "languages": {
     "zh_TW": "Traditional Chinese",

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>和平信使 - APK 下载</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            color: white;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        
+        .info-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            text-align: left;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .info-value {
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .download-btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 18px 40px;
+            border-radius: 12px;
+            text-decoration: none;
+            font-size: 18px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            margin: 10px;
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .download-btn:active {
+            transform: translateY(0);
+        }
+        
+        .back-btn {
+            display: inline-block;
+            color: #667eea;
+            padding: 12px 24px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 500;
+            margin-top: 20px;
+            transition: all 0.2s;
+        }
+        
+        .back-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .version-badge {
+            display: inline-block;
+            background: #28a745;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+        
+        .size-info {
+            color: #666;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">📱</div>
+        <h1>和平信使</h1>
+        <p class="subtitle">MOP - 私有化管控通讯系统</p>
+        
+        <div class="version-badge" id="versionBadge">版本 1.0.1+3</div>
+        
+        <div class="info-card">
+            <div class="info-item">
+                <span class="info-label">版本号</span>
+                <span class="info-value" id="version">1.0.1+3</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">构建时间</span>
+                <span class="info-value" id="buildTime">2026-01-18 10:36:04</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">文件大小</span>
+                <span class="info-value" id="fileSize">65M</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">文件名</span>
+                <span class="info-value" id="fileName" style="font-size: 12px; word-break: break-all;">mop-app-v1.0.1-3-20260118-103604.apk</span>
+            </div>
+        </div>
+        
+        <a href="/static/apk/mop-app-v1.0.1-3-20260118-103604.apk" class="download-btn" id="downloadBtn" download>
+            ⬇️ 立即下载 APK
+        </a>
+        
+        <p class="size-info">文件大小: 65M | 适用于 Android 设备</p>
+        
+        <div style="margin-top: 30px; padding-top: 30px; border-top: 1px solid #e9ecef;">
+            <a href="/" class="back-btn">← 返回首页</a>
+        </div>
+    </div>
+    
+    <script>
+        // 尝试从 latest-build-info.txt 加载最新构建信息
+        fetch('/static/apk/latest-build-info.txt')
+            .then(response => response.text())
+            .then(text => {
+                const lines = text.split('\n');
+                const info = {};
+                lines.forEach(line => {
+                    const [key, ...valueParts] = line.split(': ');
+                    if (key && valueParts.length > 0) {
+                        info[key.trim()] = valueParts.join(': ').trim();
+                    }
+                });
+                
+                if (info['版本号']) {
+                    document.getElementById('version').textContent = info['版本号'];
+                    document.getElementById('versionBadge').textContent = '版本 ' + info['版本号'];
+                }
+                if (info['构建时间']) {
+                    document.getElementById('buildTime').textContent = info['构建时间'];
+                }
+                if (info['APK 大小']) {
+                    document.getElementById('fileSize').textContent = info['APK 大小'];
+                }
+                if (info['文件名']) {
+                    document.getElementById('fileName').textContent = info['文件名'];
+                    document.getElementById('downloadBtn').href = '/static/apk/' + info['文件名'];
+                }
+            })
+            .catch(error => {
+                console.log('无法加载构建信息，使用默认值');
+            });
+    </script>
+</body>
+</html>

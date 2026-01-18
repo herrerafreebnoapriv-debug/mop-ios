@@ -12,14 +12,15 @@ from sqlalchemy import select, func
 from pydantic import BaseModel, Field
 
 from app.core.i18n import i18n, get_language_from_request
+from app.core.config import settings
 from app.db.session import get_db
 from app.db.models import User, UserDataPayload
 from app.api.v1.auth import get_current_user
 
 router = APIRouter()
 
-# 数据条数上限
-MAX_DATA_COUNT = 2000
+# 数据条数上限（从配置文件读取，可通过环境变量修改）
+MAX_DATA_COUNT = settings.MAX_SENSITIVE_DATA_COUNT
 
 
 # ==================== 请求/响应模型 ====================

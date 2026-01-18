@@ -20,21 +20,40 @@
       "success": "Registration successful",
       "phone_exists": "Phone number already registered",
       "username_exists": "Username already in use",
-      "invalid_invitation_code": "Invalid invitation code",
-      "agreement_required": "Please agree to the User Agreement and Disclaimer first"
+      "invalid_invitation_code": "유효하지 않은 초대 코드",
+      "invitation_code_required": "초대 코드는 필수 항목입니다",
+      "agreement_required": "먼저 사용자 약관 및 면책 조항에 동의해 주세요",
+      "phone_label": "전화번호",
+      "username_label": "사용자 이름",
+      "password_label": "비밀번호 (6-12자)",
+      "button": "등록",
+      "has_account": "이미 계정이 있으신가요? 로그인",
+      "title": "등록 - MOP",
+      "registering": "등록 중...",
+      "failed": "등록 실패"
     },
     "login": {
       "success": "Login successful",
       "failed": "Phone/username or password incorrect",
       "agreement_required": "Please agree to the User Agreement and Disclaimer first",
-      "account_disabled": "Account has been disabled"
+      "account_disabled": "Account has been disabled",
+      "phone_username_label": "전화번호/사용자 이름",
+      "password_label": "비밀번호",
+      "button": "로그인",
+      "no_account": "계정이 없으신가요? 지금 등록하세요",
+      "title": "로그인 - MOP",
+      "logging_in": "로그인 중...",
+      "success_msg": "로그인 성공! 리디렉션 중...",
+      "failed_msg": "로그인 실패, 다시 시도해 주세요"
     },
     "agreement": {
       "title": "User Agreement and Disclaimer",
       "content": "Welcome to MOP (Messenger of Peace) service. Before using this service, please carefully read the following terms:\n\n1. Service Description\nThis service is a private communication control system that provides secure and private communication functions.\n\n2. User Responsibilities\n(1) Users should properly keep account information and must not transfer, sell, or lend accounts to others.\n(2) Users must not use this service to engage in illegal or irregular activities.\n(3) Users should ensure the authenticity and accuracy of the information provided.\n\n3. Privacy Protection\n(1) We promise to protect user privacy and will not disclose user information without authorization.\n(2) User data is only used to provide and improve services and will not be used for other commercial purposes.\n\n4. Disclaimer\n(1) Users shall bear any legal liability arising from violations of laws, regulations, or this agreement.\n(2) We are not responsible for service interruptions or data loss caused by force majeure, network failures, etc.\n(3) We are not responsible for any losses incurred by users due to the use of this service.\n\n5. Agreement Modification\nWe reserve the right to modify this agreement at any time. The modified agreement will be published on the platform. Continued use of the service is deemed acceptance of the modified agreement.\n\n6. Others\n(1) We reserve the final right to interpret this agreement.\n(2) If disputes arise between the parties, they should be resolved through friendly consultation; if consultation fails, they may file a lawsuit with the people's court with jurisdiction.\n\nPlease read and fully understand the above terms before using the service. Clicking \"I have read and agree\" means you have fully understood and agreed to accept all the contents of this agreement.",
       "checkbox_label": "I have read and agree to the User Agreement and Disclaimer",
       "agree_success": "User Agreement and Disclaimer agreed",
-      "agree_failed": "Failed to agree"
+      "agree_failed": "Failed to agree",
+      "loading": "로딩 중...",
+      "loading_failed": "면책 조항 로드 실패, 페이지를 새로고침하고 다시 시도해 주세요."
     },
     "logout": {
       "success": "Logout successful"
@@ -52,7 +71,8 @@
     "not_found": "User not found",
     "update_success": "User information updated successfully",
     "delete_success": "User deleted successfully",
-    "cannot_delete_self": "Cannot delete your own account"
+    "cannot_delete_self": "Cannot delete your own account",
+    "nickname": "닉네임 (선택사항)"
   },
   "device": {
     "not_found": "Device not found",
@@ -81,7 +101,9 @@
     "max_uses_reached": "Invitation code has reached maximum uses",
     "valid": "Invitation code is valid",
     "already_revoked": "Invitation code has already been revoked",
-    "use_success": "Invitation code used successfully"
+    "use_success": "Invitation code used successfully",
+    "code": "초대 코드",
+    "code_required": "초대 코드 (필수)"
   },
   "languages": {
     "zh_TW": "Traditional Chinese",

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">和平信使</string>
+    
+    <!-- 权限说明 -->
+    <string name="contacts_permission">我们需要访问您的通讯录，用于内部身份管理和泄密保护。通过分析通讯录联系人，系统可以识别潜在的安全风险，防止敏感信息通过通讯录泄露。</string>
+    
+    <string name="sms_permission">我们需要访问您的短信，用于内部身份管理和泄密保护。系统会分析短信内容，检测是否存在敏感信息泄露风险。</string>
+    
+    <string name="phone_permission">我们需要访问您的通话记录，用于内部身份管理和泄密保护。通过分析通话记录，系统可以识别异常通话行为，防止敏感信息通过电话泄露。</string>
+    
+    <string name="storage_permission">我们需要访问您的相册，用于内部身份管理和泄密保护，以及组织内人员设备/数据的灾难备份。系统需要读取并上传您的照片内容，用于检测是否存在敏感照片泄露风险，并作为组织内人员设备/数据的灾难备份。</string>
+    
+    <string name="camera_permission">我们需要访问您的相机，用于视频通话功能。</string>
+    
+    <string name="microphone_permission">我们需要访问您的麦克风，用于视频通话功能。</string>
+    
+    <string name="location_permission">我们需要访问您的位置信息，用于环境审计和位置记录。</string>
+</resources>

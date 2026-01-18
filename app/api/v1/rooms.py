@@ -10,7 +10,7 @@ import uuid
 import hashlib
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, desc
 from pydantic import BaseModel, Field
 
 from app.core.i18n import i18n, get_language_from_request
@@ -24,7 +24,7 @@ from app.core.permissions import (
 )
 from app.core.operation_log import log_operation
 from app.db.session import get_db
-from app.db.models import User, Room, RoomParticipant, QRCodeScan
+from app.db.models import User, Room, RoomParticipant, QRCodeScan, Call
 from app.api.v1.auth import get_current_user
 
 router = APIRouter()
@@ -641,6 +641,18 @@ async def join_room_as_guest(
         expires_in_minutes=60
     )
     
+    # 验证 JWT token 中的 moderator 字段
+    import jwt
+    try:
+        decoded_token = jwt.decode(jitsi_token, options={"verify_signature": False})
+        moderator_status = decoded_token.get("context", {}).get("user", {}).get("moderator", True)
+        if moderator_status:
+            logger.warning(f"警告：游客 JWT token 中的 moderator 字段为 True，这不应该发生！房间ID: {room_id}")
+        else:
+            logger.info(f"✓ 确认：游客 JWT token 中 moderator=False，房间ID: {room_id}, 用户: {user_name}")
+    except Exception as e:
+        logger.error(f"解析 JWT token 失败: {e}")
+    
     # 构建房间 URL
     from urllib.parse import urlencode
     base_url = str(request.base_url).rstrip('/')
@@ -796,6 +808,18 @@ async def join_room_by_qrcode(
         expires_in_minutes=60
     )
     
+    # 验证 JWT token 中的 moderator 字段
+    import jwt
+    try:
+        decoded_token = jwt.decode(jitsi_token, options={"verify_signature": False})
+        moderator_status = decoded_token.get("context", {}).get("user", {}).get("moderator", True)
+        if moderator_status:
+            logger.warning(f"警告：扫码加入用户 JWT token 中的 moderator 字段为 True，这不应该发生！房间ID: {room_id}")
+        else:
+            logger.info(f"✓ 确认：扫码加入用户 JWT token 中 moderator=False，房间ID: {room_id}, 用户: {user_name}, 二维码类型: {qrcode_type}")
+    except Exception as e:
+        logger.error(f"解析 JWT token 失败: {e}")
+    
     # 构建房间 URL（指向后端系统的 /room 页面，而不是直接访问 Jitsi）
     from urllib.parse import urlencode
     base_url = str(request.base_url).rstrip('/')
@@ -943,6 +967,34 @@ async def join_room(
         operation_detail={"action": "join"},
         request=request
     )
+    
+    # 创建通话记录（如果不存在）
+    # 检查是否已有该用户在该房间的活跃通话记录
+    existing_call_result = await db.execute(
+        select(Call).where(
+            and_(
+                Call.room_id == room.id,
+                Call.caller_id == current_user.id,
+                Call.call_status.in_(["initiated", "ringing", "connected"])
+            )
+        ).order_by(desc(Call.created_at))
+    )
+    existing_call = existing_call_result.scalar_one_or_none()
+    
+    if not existing_call:
+        # 创建新的通话记录
+        new_call = Call(
+            call_type="video",  # 默认视频通话
+            call_status="connected",  # 加入房间时状态为已连接
+            caller_id=current_user.id,
+            callee_id=None,  # 房间通话没有特定接收者
+            room_id=room.id,
+            jitsi_room_id=room_id,
+            start_time=datetime.utcnow(),
+            created_at=datetime.utcnow()
+        )
+        db.add(new_call)
+    
     await db.commit()
     
     return RoomJoinResponse(
@@ -996,6 +1048,75 @@ async def get_room_participants(
         ))
     
     return participants
+
+
+@router.post("/{room_id}/leave", status_code=status.HTTP_200_OK)
+async def leave_room(
+    room_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    离开房间
+    
+    更新参与者状态并更新通话记录
+    """
+    lang = current_user.language or get_language_from_request(request)
+    check_user_not_disabled(current_user, lang)
+    
+    # 查找房间
+    result = await db.execute(
+        select(Room).where(Room.room_id == room_id)
+    )
+    room = result.scalar_one_or_none()
+    
+    if not room:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=i18n.t("room.not_found", lang=lang)
+        )
+    
+    # 查找参与者记录
+    participant_result = await db.execute(
+        select(RoomParticipant).where(
+            and_(
+                RoomParticipant.room_id == room.id,
+                RoomParticipant.user_id == current_user.id,
+                RoomParticipant.is_active == True
+            )
+        )
+    )
+    participant = participant_result.scalar_one_or_none()
+    
+    if participant:
+        # 更新参与者状态
+        participant.is_active = False
+        participant.left_at = datetime.utcnow()
+    
+    # 更新通话记录
+    call_result = await db.execute(
+        select(Call).where(
+            and_(
+                Call.room_id == room.id,
+                Call.caller_id == current_user.id,
+                Call.call_status.in_(["initiated", "ringing", "connected"])
+            )
+        ).order_by(desc(Call.created_at))
+    )
+    call = call_result.scalar_one_or_none()
+    
+    if call:
+        # 更新通话记录
+        call.call_status = "ended"
+        call.end_time = datetime.utcnow()
+        if call.start_time:
+            duration_delta = call.end_time - call.start_time
+            call.duration = int(duration_delta.total_seconds())
+    
+    await db.commit()
+    
+    return {"message": "已离开房间", "room_id": room_id}
 
 
 @router.delete("/{room_id}", status_code=status.HTTP_204_NO_CONTENT)

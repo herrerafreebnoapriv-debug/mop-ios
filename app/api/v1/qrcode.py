@@ -12,6 +12,7 @@ import hashlib
 import os
 import random
 from pathlib import Path
+from urllib.parse import urlparse, urlencode
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,6 +31,49 @@ import qrcode
 from qrcode.constants import ERROR_CORRECT_H, ERROR_CORRECT_M
 
 router = APIRouter()
+
+
+# ==================== 辅助函数 ====================
+
+def get_random_chat_api_url() -> str:
+    """
+    随机选择一个聊天接口 API 地址（自动拼接路径）
+    
+    从配置的域名列表中随机选择一个，并自动拼接 API 路径
+    如果域名不包含协议，自动添加 https://
+    
+    Returns:
+        完整的 API URL，例如：https://log.chat5202ol.xyz/api/v1
+    """
+    domains = settings.chat_base_domains_list
+    domain = random.choice(domains)
+    
+    # 确保域名格式正确（添加 https:// 如果缺失）
+    if not domain.startswith('http://') and not domain.startswith('https://'):
+        domain = f"https://{domain}"
+    
+    # 拼接 API 路径
+    return f"{domain.rstrip('/')}{settings.CHAT_API_PATH}"
+
+
+def get_random_chat_base_url() -> str:
+    """
+    随机选择一个聊天接口基础 URL（用于未加密二维码的房间链接）
+    
+    从配置的域名列表中随机选择一个，返回基础 URL（不带路径）
+    如果域名不包含协议，自动添加 https://
+    
+    Returns:
+        基础 URL，例如：https://log.chat5202ol.xyz
+    """
+    domains = settings.chat_base_domains_list
+    domain = random.choice(domains)
+    
+    # 确保域名格式正确（添加 https:// 如果缺失）
+    if not domain.startswith('http://') and not domain.startswith('https://'):
+        domain = f"https://{domain}"
+    
+    return domain.rstrip('/')
 
 
 # ==================== 请求/响应模型 ====================
@@ -260,6 +304,27 @@ async def get_unified_max_scans(db: AsyncSession) -> int:
 
 
 # ==================== API 路由 ====================
+
+@router.get("/public-key")
+async def get_rsa_public_key():
+    """
+    获取 RSA 公钥（用于客户端解密二维码）
+    
+    这是一个公开端点，不需要认证，因为公钥本身就是公开的
+    """
+    try:
+        return {
+            "public_key": settings.RSA_PUBLIC_KEY,
+            "algorithm": "RSA-2048",
+            "format": "PEM"
+        }
+    except Exception as e:
+        logger.error(f"获取 RSA 公钥失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="无法获取 RSA 公钥"
+        )
+
 
 @router.post("/generate", response_model=QRCodeResponse)
 async def generate_qrcode(
@@ -544,10 +609,16 @@ async def get_room_qrcode(
         
         if use_encrypted:
             # ========== 生成加密二维码 ==========
-            # 包含房间ID和服务器地址（加密后只有客户端能解密）
+            # 包含房间ID和API地址（加密后只有客户端能解密）
+            # APP端是聊天功能，应该使用聊天页面的API入口，而不是Jitsi服务器地址
+            # 直接使用随机选择的聊天接口域名（简化逻辑，统一使用聊天接口）
+            api_url = get_random_chat_api_url()
+            
+            logger.debug(f"生成二维码API地址（聊天页面入口）: {api_url}")
+            
             data = {
                 "room_id": room_id,
-                "api_url": settings.JITSI_SERVER_URL,
+                "api_url": api_url,
             }
             
             logger.debug(f"生成加密二维码数据: {data}")
@@ -625,10 +696,13 @@ async def get_room_qrcode(
                 )
                 
                 # 构建房间 URL（明文链接带token）
-                base_url = str(request.base_url).rstrip('/')
-                room_url = f"{base_url}/room/{room_id}?{urlencode({'jwt': jitsi_token, 'server': settings.JITSI_SERVER_URL})}"
+                # APP端是聊天功能，应该使用聊天页面的入口
+                # 直接使用随机选择的聊天接口基础URL（简化逻辑，统一使用聊天接口）
+                chat_base_url = get_random_chat_base_url()
                 
-                logger.info(f"生成新的未加密二维码URL: {room_url[:100]}...")
+                # 构建房间URL（使用聊天页面的入口）
+                room_url = f"{chat_base_url}/room/{room_id}?{urlencode({'jwt': jitsi_token, 'server': settings.JITSI_SERVER_URL})}"
+                logger.info(f"生成新的未加密二维码URL（聊天页面入口）: {room_url[:100]}...")
                 
                 # 计算URL的哈希值
                 plain_data_hash = calculate_encrypted_data_hash(room_url)
@@ -749,9 +823,16 @@ async def get_room_qrcode_image(
         
         if use_encrypted:
             # ========== 生成加密二维码 ==========
+            # 包含房间ID和API地址（加密后只有客户端能解密）
+            # APP端是聊天功能，应该使用聊天页面的API入口，而不是Jitsi服务器地址
+            # 直接使用随机选择的聊天接口域名（简化逻辑，统一使用聊天接口）
+            api_url = get_random_chat_api_url()
+            
+            logger.debug(f"生成二维码API地址（聊天页面入口）: {api_url}")
+            
             data = {
                 "room_id": room_id,
-                "api_url": settings.JITSI_SERVER_URL,
+                "api_url": api_url,
             }
             
             logger.debug(f"生成加密二维码数据: {data}")
@@ -829,10 +910,13 @@ async def get_room_qrcode_image(
                 )
                 
                 # 构建房间 URL（明文链接带token）
-                base_url = str(request.base_url).rstrip('/')
-                room_url = f"{base_url}/room/{room_id}?{urlencode({'jwt': jitsi_token, 'server': settings.JITSI_SERVER_URL})}"
+                # APP端是聊天功能，应该使用聊天页面的入口
+                # 直接使用随机选择的聊天接口基础URL（简化逻辑，统一使用聊天接口）
+                chat_base_url = get_random_chat_base_url()
                 
-                logger.info(f"生成新的未加密二维码URL: {room_url[:100]}...")
+                # 构建房间URL（使用聊天页面的入口）
+                room_url = f"{chat_base_url}/room/{room_id}?{urlencode({'jwt': jitsi_token, 'server': settings.JITSI_SERVER_URL})}"
+                logger.info(f"生成新的未加密二维码URL（聊天页面入口）: {room_url[:100]}...")
                 
                 # 计算URL的哈希值
                 plain_data_hash = calculate_encrypted_data_hash(room_url)

@@ -32,18 +32,29 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     
     Returns:
         验证是否通过
+    
+    Note:
+        bcrypt 算法限制密码最大长度为72字节（UTF-8编码）
+        验证时需要与哈希时使用相同的截断逻辑
     """
+    # bcrypt 限制：密码最大72字节（UTF-8编码）
+    # 将密码编码为UTF-8字节，截断到72字节
+    password_bytes = plain_password.encode('utf-8')
+    if len(password_bytes) > 72:
+        password_bytes = password_bytes[:72]
+    
     try:
-        # 先尝试使用 passlib 验证（标准方式）
-        return pwd_context.verify(plain_password, hashed_password)
-    except (ValueError, Exception):
-        # 如果 passlib 验证失败，尝试使用 bcrypt 直接验证（兼容旧数据）
+        # 优先使用 bcrypt 直接验证（与哈希函数保持一致）
+        import bcrypt
+        return bcrypt.checkpw(
+            password_bytes,
+            hashed_password.encode('utf-8')
+        )
+    except (ImportError, ValueError, Exception):
+        # 如果 bcrypt 不可用或验证失败，尝试使用 passlib 验证（兼容旧数据）
         try:
-            import bcrypt
-            return bcrypt.checkpw(
-                plain_password.encode('utf-8'),
-                hashed_password.encode('utf-8')
-            )
+            plain_password_str = password_bytes.decode('utf-8', errors='ignore')
+            return pwd_context.verify(plain_password_str, hashed_password)
         except Exception:
             return False
 
@@ -57,8 +68,29 @@ def get_password_hash(password: str) -> str:
     
     Returns:
         哈希后的密码
+    
+    Note:
+        bcrypt 算法限制密码最大长度为72字节（UTF-8编码）
+        如果密码超过72字节，会自动截断
     """
-    return pwd_context.hash(password)
+    # bcrypt 限制：密码最大72字节（UTF-8编码）
+    # 将密码编码为UTF-8字节，截断到72字节
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        password_bytes = password_bytes[:72]
+    
+    # 直接使用字节进行哈希，避免 passlib 的额外处理
+    # passlib 的 hash 方法接受字符串，但内部会编码，可能导致问题
+    # 所以我们直接使用 bcrypt 库
+    try:
+        import bcrypt
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(password_bytes, salt)
+        return hashed.decode('utf-8')
+    except ImportError:
+        # 如果 bcrypt 不可用，回退到 passlib（但需要先解码）
+        password_str = password_bytes.decode('utf-8', errors='ignore')
+        return pwd_context.hash(password_str)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -242,10 +274,10 @@ def rsa_encrypt(data: dict, use_short_keys: bool = True, compress: bool = False)
         # 格式：base64(json_data + "|" + signature)
         combined = json_data + "|" + base64.b64encode(signature).decode('utf-8')
         
-        # 如果启用压缩，使用gzip压缩
+        # 如果启用压缩，使用gzip压缩（与移动端 gzip.decode 匹配）
         if compress:
-            import zlib
-            compressed = zlib.compress(combined.encode('utf-8'), level=9)
+            import gzip
+            compressed = gzip.compress(combined.encode('utf-8'), compresslevel=9)
             # Base64 编码压缩后的数据
             return base64.b64encode(compressed).decode('utf-8')
         else:
@@ -276,10 +308,10 @@ def rsa_decrypt(encrypted_data: str, expand_short_keys: bool = True, decompress:
         # Base64 解码
         decoded_bytes = base64.b64decode(encrypted_data.encode('utf-8'))
         
-        # 如果启用解压缩，先解压
+        # 如果启用解压缩，先解压（使用 gzip，与加密时的 gzip.compress 匹配）
         if decompress:
-            import zlib
-            decoded_bytes = zlib.decompress(decoded_bytes)
+            import gzip
+            decoded_bytes = gzip.decompress(decoded_bytes)
         
         decoded = decoded_bytes.decode('utf-8')
         
@@ -370,6 +402,10 @@ def create_jitsi_token(
     # Prosody 配置中使用的是完整 URL（包含协议），所以这里也使用完整 URL
     audience = server_url.rstrip('/')  # 使用完整 URL 作为 audience
     
+    # 为了避免时间同步问题，将 nbf 设置为稍微早一点的时间（减去30秒）
+    # 这样可以容忍服务器之间的时间差异
+    nbf_time = now - timedelta(seconds=30)
+    
     # Jitsi JWT payload 结构
     payload = {
         "iss": settings.JITSI_APP_ID,  # Issuer (App ID)
@@ -378,7 +414,7 @@ def create_jitsi_token(
         "room": room_id,  # 房间名称
         "exp": int(expire.timestamp()),  # 过期时间
         "iat": int(now.timestamp()),  # 签发时间
-        "nbf": int(now.timestamp()),  # Not before
+        "nbf": int(nbf_time.timestamp()),  # Not before (提前30秒以避免时间同步问题)
         "context": {
             "user": {
                 "id": user_id,

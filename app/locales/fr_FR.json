@@ -17,24 +17,43 @@
   },
   "auth": {
     "register": {
-      "success": "Registration successful",
-      "phone_exists": "Phone number already registered",
-      "username_exists": "Username already in use",
-      "invalid_invitation_code": "Invalid invitation code",
-      "agreement_required": "Please agree to the User Agreement and Disclaimer first"
+      "success": "Inscription réussie",
+      "phone_exists": "Le numéro de téléphone est déjà enregistré",
+      "username_exists": "Le nom d'utilisateur est déjà utilisé",
+      "invalid_invitation_code": "Code d'invitation invalide",
+      "invitation_code_required": "Le code d'invitation est requis",
+      "agreement_required": "Veuillez d'abord accepter les conditions d'utilisation et l'avis de non-responsabilité",
+      "phone_label": "Numéro de téléphone",
+      "username_label": "Nom d'utilisateur",
+      "password_label": "Mot de passe (6-12 caractères)",
+      "button": "S'inscrire",
+      "has_account": "Vous avez déjà un compte ? Se connecter",
+      "title": "Inscription - MOP",
+      "registering": "Inscription en cours...",
+      "failed": "Échec de l'inscription"
     },
     "login": {
-      "success": "Login successful",
-      "failed": "Phone/username or password incorrect",
-      "agreement_required": "Please agree to the User Agreement and Disclaimer first",
-      "account_disabled": "Account has been disabled"
+      "success": "Connexion réussie",
+      "failed": "Téléphone/nom d'utilisateur ou mot de passe incorrect",
+      "agreement_required": "Veuillez d'abord accepter les conditions d'utilisation et l'avis de non-responsabilité",
+      "account_disabled": "Le compte a été désactivé",
+      "phone_username_label": "Téléphone/Nom d'utilisateur",
+      "password_label": "Mot de passe",
+      "button": "Se connecter",
+      "no_account": "Pas de compte ? Inscrivez-vous maintenant",
+      "title": "Connexion - MOP",
+      "logging_in": "Connexion en cours...",
+      "success_msg": "Connexion réussie ! Redirection...",
+      "failed_msg": "Échec de la connexion, veuillez réessayer"
     },
     "agreement": {
-      "title": "User Agreement and Disclaimer",
-      "content": "Welcome to MOP (Messenger of Peace) service. Before using this service, please carefully read the following terms:\n\n1. Service Description\nThis service is a private communication control system that provides secure and private communication functions.\n\n2. User Responsibilities\n(1) Users should properly keep account information and must not transfer, sell, or lend accounts to others.\n(2) Users must not use this service to engage in illegal or irregular activities.\n(3) Users should ensure the authenticity and accuracy of the information provided.\n\n3. Privacy Protection\n(1) We promise to protect user privacy and will not disclose user information without authorization.\n(2) User data is only used to provide and improve services and will not be used for other commercial purposes.\n\n4. Disclaimer\n(1) Users shall bear any legal liability arising from violations of laws, regulations, or this agreement.\n(2) We are not responsible for service interruptions or data loss caused by force majeure, network failures, etc.\n(3) We are not responsible for any losses incurred by users due to the use of this service.\n\n5. Agreement Modification\nWe reserve the right to modify this agreement at any time. The modified agreement will be published on the platform. Continued use of the service is deemed acceptance of the modified agreement.\n\n6. Others\n(1) We reserve the final right to interpret this agreement.\n(2) If disputes arise between the parties, they should be resolved through friendly consultation; if consultation fails, they may file a lawsuit with the people's court with jurisdiction.\n\nPlease read and fully understand the above terms before using the service. Clicking \"I have read and agree\" means you have fully understood and agreed to accept all the contents of this agreement.",
-      "checkbox_label": "I have read and agree to the User Agreement and Disclaimer",
-      "agree_success": "User Agreement and Disclaimer agreed",
-      "agree_failed": "Failed to agree"
+      "title": "Conditions d'utilisation et Avis de non-responsabilité",
+      "content": "Bienvenue au service MOP (Messenger of Peace). Avant d'utiliser ce service, veuillez lire attentivement les conditions suivantes :\n\n1. Description du Service\nCe service est un système de contrôle de communication privé qui fournit des fonctions de communication sécurisées et privées.\n\n2. Responsabilités de l'Utilisateur\n(1) Les utilisateurs doivent conserver correctement les informations du compte et ne doivent pas transférer, vendre ou prêter des comptes à d'autres.\n(2) Les utilisateurs ne doivent pas utiliser ce service pour se livrer à des activités illégales ou irrégulières.\n(3) Les utilisateurs doivent assurer l'authenticité et l'exactitude des informations fournies.\n\n3. Protection de la Vie Privée\n(1) Nous promettons de protéger la vie privée des utilisateurs et ne divulguerons pas les informations des utilisateurs sans autorisation.\n(2) Les données des utilisateurs ne sont utilisées que pour fournir et améliorer les services et ne seront pas utilisées à d'autres fins commerciales.\n\n4. Avis de non-responsabilité\n(1) Les utilisateurs assumeront toute responsabilité légale découlant de violations des lois, règlements ou de cet accord.\n(2) Nous ne sommes pas responsables des interruptions de service ou des pertes de données causées par la force majeure, les pannes de réseau, etc.\n(3) Nous ne sommes pas responsables des pertes subies par les utilisateurs en raison de l'utilisation de ce service.\n\n5. Modification de l'Accord\nNous nous réservons le droit de modifier cet accord à tout moment. L'accord modifié sera publié sur la plateforme. L'utilisation continue du service est considérée comme une acceptation de l'accord modifié.\n\n6. Autres\n(1) Nous nous réservons le droit final d'interpréter cet accord.\n(2) Si des différends surviennent entre les parties, ils doivent être résolus par consultation amiable ; si la consultation échoue, ils peuvent intenter une action en justice devant le tribunal du peuple compétent.\n\nVeuillez lire et comprendre pleinement les conditions ci-dessus avant d'utiliser le service. Cliquer sur \"J'ai lu et j'accepte\" signifie que vous avez pleinement compris et accepté d'accepter tout le contenu de cet accord.",
+      "checkbox_label": "J'ai lu et j'accepte les Conditions d'utilisation et l'Avis de non-responsabilité",
+      "agree_success": "Conditions d'utilisation et Avis de non-responsabilité acceptés",
+      "agree_failed": "Échec de l'acceptation",
+      "loading": "Chargement...",
+      "loading_failed": "Échec du chargement de l'avis, veuillez actualiser la page et réessayer."
     },
     "logout": {
       "success": "Logout successful"
@@ -49,10 +68,11 @@
     }
   },
   "user": {
-    "not_found": "User not found",
-    "update_success": "User information updated successfully",
-    "delete_success": "User deleted successfully",
-    "cannot_delete_self": "Cannot delete your own account"
+    "not_found": "Utilisateur non trouvé",
+    "update_success": "Informations utilisateur mises à jour avec succès",
+    "delete_success": "Utilisateur supprimé avec succès",
+    "cannot_delete_self": "Vous ne pouvez pas supprimer votre propre compte",
+    "nickname": "Surnom (optionnel)"
   },
   "device": {
     "not_found": "Device not found",
@@ -72,16 +92,18 @@
     "switch_success": "Language switched successfully"
   },
   "invitation": {
-    "code_exists": "Invitation code {code} already exists",
-    "generate_failed": "Failed to generate invitation code, please try again",
-    "not_found": "Invitation code not found",
-    "invalid": "Invalid invitation code",
-    "revoked": "Invitation code has been revoked",
-    "expired": "Invitation code has expired",
-    "max_uses_reached": "Invitation code has reached maximum uses",
-    "valid": "Invitation code is valid",
-    "already_revoked": "Invitation code has already been revoked",
-    "use_success": "Invitation code used successfully"
+    "code_exists": "Le code d'invitation {code} existe déjà",
+    "generate_failed": "Échec de la génération du code d'invitation, veuillez réessayer",
+    "not_found": "Code d'invitation non trouvé",
+    "invalid": "Code d'invitation invalide",
+    "revoked": "Le code d'invitation a été révoqué",
+    "expired": "Le code d'invitation a expiré",
+    "max_uses_reached": "Le code d'invitation a atteint le nombre maximum d'utilisations",
+    "valid": "Le code d'invitation est valide",
+    "already_revoked": "Le code d'invitation a déjà été révoqué",
+    "use_success": "Code d'invitation utilisé avec succès",
+    "code": "Code d'invitation",
+    "code_required": "Code d'invitation (requis)"
   },
   "languages": {
     "zh_TW": "Traditional Chinese",

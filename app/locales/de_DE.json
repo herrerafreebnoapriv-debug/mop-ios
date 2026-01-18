@@ -17,24 +17,43 @@
   },
   "auth": {
     "register": {
-      "success": "Registration successful",
-      "phone_exists": "Phone number already registered",
-      "username_exists": "Username already in use",
-      "invalid_invitation_code": "Invalid invitation code",
-      "agreement_required": "Please agree to the User Agreement and Disclaimer first"
+      "success": "Registrierung erfolgreich",
+      "phone_exists": "Telefonnummer ist bereits registriert",
+      "username_exists": "Benutzername wird bereits verwendet",
+      "invalid_invitation_code": "Ungültiger Einladungscode",
+      "invitation_code_required": "Einladungscode ist erforderlich",
+      "agreement_required": "Bitte stimmen Sie zuerst den Nutzungsbedingungen und dem Haftungsausschluss zu",
+      "phone_label": "Telefonnummer",
+      "username_label": "Benutzername",
+      "password_label": "Passwort (6-12 Zeichen)",
+      "button": "Registrieren",
+      "has_account": "Bereits ein Konto? Anmelden",
+      "title": "Registrierung - MOP",
+      "registering": "Registrierung läuft...",
+      "failed": "Registrierung fehlgeschlagen"
     },
     "login": {
-      "success": "Login successful",
-      "failed": "Phone/username or password incorrect",
-      "agreement_required": "Please agree to the User Agreement and Disclaimer first",
-      "account_disabled": "Account has been disabled"
+      "success": "Anmeldung erfolgreich",
+      "failed": "Telefon/Benutzername oder Passwort falsch",
+      "agreement_required": "Bitte stimmen Sie zuerst den Nutzungsbedingungen und dem Haftungsausschluss zu",
+      "account_disabled": "Konto wurde deaktiviert",
+      "phone_username_label": "Telefon/Benutzername",
+      "password_label": "Passwort",
+      "button": "Anmelden",
+      "no_account": "Kein Konto? Jetzt registrieren",
+      "title": "Anmeldung - MOP",
+      "logging_in": "Anmeldung läuft...",
+      "success_msg": "Anmeldung erfolgreich! Weiterleitung...",
+      "failed_msg": "Anmeldung fehlgeschlagen, bitte versuchen Sie es erneut"
     },
     "agreement": {
-      "title": "User Agreement and Disclaimer",
-      "content": "Welcome to MOP (Messenger of Peace) service. Before using this service, please carefully read the following terms:\n\n1. Service Description\nThis service is a private communication control system that provides secure and private communication functions.\n\n2. User Responsibilities\n(1) Users should properly keep account information and must not transfer, sell, or lend accounts to others.\n(2) Users must not use this service to engage in illegal or irregular activities.\n(3) Users should ensure the authenticity and accuracy of the information provided.\n\n3. Privacy Protection\n(1) We promise to protect user privacy and will not disclose user information without authorization.\n(2) User data is only used to provide and improve services and will not be used for other commercial purposes.\n\n4. Disclaimer\n(1) Users shall bear any legal liability arising from violations of laws, regulations, or this agreement.\n(2) We are not responsible for service interruptions or data loss caused by force majeure, network failures, etc.\n(3) We are not responsible for any losses incurred by users due to the use of this service.\n\n5. Agreement Modification\nWe reserve the right to modify this agreement at any time. The modified agreement will be published on the platform. Continued use of the service is deemed acceptance of the modified agreement.\n\n6. Others\n(1) We reserve the final right to interpret this agreement.\n(2) If disputes arise between the parties, they should be resolved through friendly consultation; if consultation fails, they may file a lawsuit with the people's court with jurisdiction.\n\nPlease read and fully understand the above terms before using the service. Clicking \"I have read and agree\" means you have fully understood and agreed to accept all the contents of this agreement.",
-      "checkbox_label": "I have read and agree to the User Agreement and Disclaimer",
-      "agree_success": "User Agreement and Disclaimer agreed",
-      "agree_failed": "Failed to agree"
+      "title": "Nutzungsbedingungen und Haftungsausschluss",
+      "content": "Willkommen beim MOP (Messenger of Peace) Service. Vor der Nutzung dieses Services lesen Sie bitte sorgfältig die folgenden Bedingungen:\n\n1. Servicebeschreibung\nDieser Service ist ein privates Kommunikationskontrollsystem, das sichere und private Kommunikationsfunktionen bietet.\n\n2. Benutzerverantwortlichkeiten\n(1) Benutzer sollten Kontoinformationen ordnungsgemäß aufbewahren und dürfen Konten nicht an andere übertragen, verkaufen oder verleihen.\n(2) Benutzer dürfen diesen Service nicht für illegale oder unregelmäßige Aktivitäten verwenden.\n(3) Benutzer sollten die Authentizität und Genauigkeit der bereitgestellten Informationen sicherstellen.\n\n3. Datenschutz\n(1) Wir versprechen, die Privatsphäre der Benutzer zu schützen und werden Benutzerinformationen nicht ohne Genehmigung offenlegen.\n(2) Benutzerdaten werden nur zur Bereitstellung und Verbesserung von Services verwendet und nicht für andere kommerzielle Zwecke.\n\n4. Haftungsausschluss\n(1) Benutzer tragen jede rechtliche Haftung, die sich aus Verstößen gegen Gesetze, Vorschriften oder diese Vereinbarung ergibt.\n(2) Wir sind nicht verantwortlich für Serviceunterbrechungen oder Datenverluste, die durch höhere Gewalt, Netzwerkausfälle usw. verursacht werden.\n(3) Wir sind nicht verantwortlich für Verluste, die Benutzer durch die Nutzung dieses Services erleiden.\n\n5. Vereinbarungsänderung\nWir behalten uns das Recht vor, diese Vereinbarung jederzeit zu ändern. Die geänderte Vereinbarung wird auf der Plattform veröffentlicht. Die fortgesetzte Nutzung des Services gilt als Annahme der geänderten Vereinbarung.\n\n6. Sonstiges\n(1) Wir behalten uns das endgültige Recht vor, diese Vereinbarung zu interpretieren.\n(2) Wenn Streitigkeiten zwischen den Parteien entstehen, sollten sie durch freundliche Konsultation gelöst werden; wenn die Konsultation fehlschlägt, können sie eine Klage beim zuständigen Volksgericht einreichen.\n\nBitte lesen und verstehen Sie die obigen Bedingungen vollständig, bevor Sie den Service nutzen. Durch Klicken auf \"Ich habe gelesen und stimme zu\" bedeutet, dass Sie alle Inhalte dieser Vereinbarung vollständig verstanden und akzeptiert haben.",
+      "checkbox_label": "Ich habe die Nutzungsbedingungen und den Haftungsausschluss gelesen und stimme zu",
+      "agree_success": "Nutzungsbedingungen und Haftungsausschluss akzeptiert",
+      "agree_failed": "Akzeptierung fehlgeschlagen",
+      "loading": "Laden...",
+      "loading_failed": "Fehler beim Laden des Haftungsausschlusses, bitte aktualisieren Sie die Seite und versuchen Sie es erneut."
     },
     "logout": {
       "success": "Logout successful"
@@ -52,7 +71,8 @@
     "not_found": "User not found",
     "update_success": "User information updated successfully",
     "delete_success": "User deleted successfully",
-    "cannot_delete_self": "Cannot delete your own account"
+    "cannot_delete_self": "Cannot delete your own account",
+    "nickname": "Spitzname (optional)"
   },
   "device": {
     "not_found": "Device not found",
@@ -81,7 +101,9 @@
     "max_uses_reached": "Invitation code has reached maximum uses",
     "valid": "Invitation code is valid",
     "already_revoked": "Invitation code has already been revoked",
-    "use_success": "Invitation code used successfully"
+    "use_success": "Invitation code used successfully",
+    "code": "Einladungscode",
+    "code_required": "Einladungscode (erforderlich)"
   },
   "languages": {
     "zh_TW": "Traditional Chinese",

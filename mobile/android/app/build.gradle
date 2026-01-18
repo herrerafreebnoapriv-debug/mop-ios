@@ -1,0 +1,139 @@
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader ->
+        localProperties.load(reader)
+    }
+}
+
+def flutterRoot = localProperties.getProperty('flutter.sdk')
+if (flutterRoot == null) {
+    throw new GradleException("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+}
+
+def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+if (flutterVersionCode == null) {
+    flutterVersionCode = '1'
+}
+
+def flutterVersionName = localProperties.getProperty('flutter.versionName')
+if (flutterVersionName == null) {
+    flutterVersionName = '1.0'
+}
+
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+
+// 加载签名配置
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('key.properties')
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    namespace "com.mop.app"
+    compileSdkVersion 35
+    
+    buildToolsVersion "35.0.0"
+
+    compileOptions {
+        // Jitsi SDK 11.6.0 要求：必须使用 Java 17 并启用核心库脱糖
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        // 必须开启核心库脱糖以支持 Java 8+ API
+        coreLibraryDesugaringEnabled true
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                // storeFile 路径相对于 key.properties 文件所在目录
+                def keystorePath = keystorePropertiesFile.getParentFile()
+                storeFile file("${keystorePath}/${keystoreProperties['storeFile']}")
+                storePassword keystoreProperties['storePassword']
+                
+                // 启用 V1 + V2 + V3 签名（测试版和生产版都需要）
+                v1SigningEnabled true   // JAR 签名（兼容旧版 Android）
+                v2SigningEnabled true   // APK Signature Scheme v2（Android 7.0+）
+                // V3 签名默认启用（Android 9+）
+            }
+        }
+    }
+
+    defaultConfig {
+        applicationId "com.mop.app"
+        minSdkVersion 26  // Jitsi SDK 11.6.0 硬性要求：必须 >= 26
+        targetSdkVersion 34  // 对应 Android 14
+        versionCode flutterVersionCode.toInteger()
+        versionName flutterVersionName
+        // 启用 MultiDex 以支持 Jitsi SDK 的大量方法数
+        multiDexEnabled true
+        
+        // ABI 过滤：仅保留 arm64-v8a 架构，减少 APK 大小
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    packaging {
+        // 解决 libc++_shared.so 冲突：多个库提供了相同的原生库
+        // 选择第一个匹配的文件，忽略后续的重复文件
+        // 只保留 arm64-v8a 架构
+        pickFirst 'lib/arm64-v8a/libc++_shared.so'
+        
+        // 排除不需要的架构，减少 APK 大小
+        exclude 'lib/armeabi-v7a/**'
+        exclude 'lib/x86/**'
+        exclude 'lib/x86_64/**'
+    }
+
+    buildTypes {
+        release {
+            // 如果存在签名配置，使用签名配置；否则使用 debug 签名
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
+            // Jitsi SDK 资源碎片化严重，暂时关闭资源缩减以加速构建
+            minifyEnabled false
+            shrinkResources false
+            // proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    
+    // MultiDex 支持（解决 Jitsi SDK 方法数爆炸问题）
+    implementation 'androidx.multidex:multidex:2.0.1'
+    
+    // 核心库脱糖：必须引入以支持 Java 8+ API（Jitsi SDK 要求）
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    
+    // 修复 Google Play Services 依赖问题
+    // 使用兼容的版本组合
+    implementation 'com.google.android.gms:play-services-base:18.3.0'
+    implementation 'com.google.android.gms:play-services-basement:18.3.0'
+}

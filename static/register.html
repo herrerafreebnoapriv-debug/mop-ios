@@ -195,6 +195,38 @@
             border-color: #667eea;
         }
         
+        .password-container {
+            position: relative;
+        }
+        
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            color: #666;
+            padding: 5px;
+            outline: none;
+            transition: color 0.3s;
+        }
+        
+        .password-toggle:hover {
+            color: #667eea;
+        }
+        
+        .password-mask {
+            margin-top: 8px;
+            font-size: 14px;
+            color: #666;
+            font-family: monospace;
+            letter-spacing: 2px;
+            word-break: break-all;
+        }
+        
         .agreement-section {
             margin: 25px 0;
             padding: 20px;
@@ -379,18 +411,22 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="password" data-i18n="auth.register.password_label">密碼</label>
-                    <input type="password" id="password" name="password" required minlength="6" maxlength="72" autocomplete="new-password" data-i18n="auth.register.password_label" placeholder="">
+                    <label for="password" data-i18n="auth.register.password_label">密碼（6-12位）</label>
+                    <div style="position: relative;">
+                        <input type="password" id="password" name="password" required minlength="6" maxlength="12" autocomplete="new-password" data-i18n="auth.register.password_label" placeholder="" style="padding-right: 45px;">
+                        <button type="button" id="toggle-password" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 18px; color: #666; padding: 5px; outline: none;" title="显示/隐藏密码">👁️</button>
+                    </div>
+                    <div id="password-mask" style="display: none; margin-top: 8px; font-size: 14px; color: #666; font-family: monospace; letter-spacing: 2px;"></div>
                 </div>
                 
                 <div class="form-group">
                     <label for="nickname" data-i18n="user.nickname">暱稱（可選）</label>
-                    <input type="text" id="nickname" name="nickname" maxlength="100" autocomplete="nickname" data-i18n="user.nickname" placeholder="">
+                    <input type="text" id="nickname" name="nickname" maxlength="100" autocomplete="nickname" placeholder="">
                 </div>
                 
                 <div class="form-group">
-                    <label for="invitation-code" data-i18n="invitation.code">邀請碼（可選）</label>
-                    <input type="text" id="invitation-code" name="invitation_code" maxlength="50" autocomplete="off" data-i18n="invitation.code" placeholder="">
+                    <label for="invitation-code" data-i18n="invitation.code">邀請碼 <span style="color: #e74c3c;">*</span></label>
+                    <input type="text" id="invitation-code" name="invitation_code" required minlength="1" maxlength="50" autocomplete="off" placeholder="">
                 </div>
                 
                 <div class="agreement-section">
@@ -414,6 +450,8 @@
         </div>
     </div>
     
+    <script src="/static/i18n.js"></script>
+    
     <script>
         // 自动检测 API 基础路径
         function getApiBase() {
@@ -426,31 +464,87 @@
         const API_BASE = getApiBase();
         let agreementData = null;
         
+        // 获取跳转路径（与登录页面保持一致）
+        function getRedirectPath() {
+            const hostname = window.location.hostname;
+            // log.chat5202ol.xyz → 即时通讯（/chat）
+            if (hostname === 'log.chat5202ol.xyz') {
+                return '/chat';
+            }
+            // 主域名 → 后台管理系统（/dashboard）
+            return '/dashboard';
+        }
+        
         // 更新页面文本（使用 i18n）
         function updatePageText() {
+            // 确保 i18n 已初始化
+            if (!window.i18n || typeof window.i18n.t !== 'function') {
+                console.error('i18n not initialized');
+                return;
+            }
+            
             // 更新应用名称和描述
-            document.getElementById('app-name').textContent = window.i18n.t('app.name');
-            document.getElementById('app-desc').textContent = window.i18n.t('app.description');
+            const appName = window.i18n.t('app.name');
+            const appDesc = window.i18n.t('app.description');
+            if (appName && appName !== 'app.name') {
+                document.getElementById('app-name').textContent = appName;
+            }
+            if (appDesc && appDesc !== 'app.description') {
+                document.getElementById('app-desc').textContent = appDesc;
+            }
             
             // 更新表单标签
-            document.querySelector('label[for="phone"]').textContent = window.i18n.t('auth.register.phone_label');
-            document.querySelector('label[for="username"]').textContent = window.i18n.t('auth.register.username_label');
-            document.querySelector('label[for="password"]').textContent = window.i18n.t('auth.register.password_label');
-            document.getElementById('phone').placeholder = window.i18n.t('auth.register.phone_label');
-            document.getElementById('username').placeholder = window.i18n.t('auth.register.username_label');
-            document.getElementById('password').placeholder = window.i18n.t('auth.register.password_label');
+            const phoneLabel = window.i18n.t('auth.register.phone_label');
+            const usernameLabel = window.i18n.t('auth.register.username_label');
+            const passwordLabel = window.i18n.t('auth.register.password_label');
+            const nicknameLabel = window.i18n.t('user.nickname');
+            const invitationCodeLabel = window.i18n.t('invitation.code');
             
-            // 更新按钮
+            if (phoneLabel && phoneLabel !== 'auth.register.phone_label') {
+                document.querySelector('label[for="phone"]').textContent = phoneLabel;
+                document.getElementById('phone').placeholder = phoneLabel;
+            }
+            if (usernameLabel && usernameLabel !== 'auth.register.username_label') {
+                document.querySelector('label[for="username"]').textContent = usernameLabel;
+                document.getElementById('username').placeholder = usernameLabel;
+            }
+            if (passwordLabel && passwordLabel !== 'auth.register.password_label') {
+                document.querySelector('label[for="password"]').textContent = passwordLabel;
+                document.getElementById('password').placeholder = passwordLabel;
+            }
+            if (nicknameLabel && nicknameLabel !== 'user.nickname') {
+                document.querySelector('label[for="nickname"]').textContent = nicknameLabel;
+                const nicknameInput = document.getElementById('nickname');
+                if (nicknameInput) {
+                    nicknameInput.placeholder = nicknameLabel;
+                }
+            }
+            
+            // 更新邀请码标签（必填）
+            const invitationLabel = document.querySelector('label[for="invitation-code"]');
+            if (invitationLabel && invitationCodeLabel && invitationCodeLabel !== 'invitation.code') {
+                invitationLabel.innerHTML = invitationCodeLabel + ' <span style="color: #e74c3c;">*</span>';
+                document.getElementById('invitation-code').placeholder = invitationCodeLabel;
+            }
+            
+            // 更新按钮（无论是否disabled都要更新）
             const registerBtn = document.getElementById('register-btn');
-            if (!registerBtn.disabled) {
-                registerBtn.textContent = window.i18n.t('auth.register.button');
+            const buttonText = window.i18n.t('auth.register.button');
+            if (buttonText && buttonText !== 'auth.register.button') {
+                registerBtn.textContent = buttonText;
             }
             
             // 更新链接
-            document.querySelector('.links a').textContent = window.i18n.t('auth.register.has_account');
+            const hasAccountText = window.i18n.t('auth.register.has_account');
+            if (hasAccountText && hasAccountText !== 'auth.register.has_account') {
+                document.querySelector('.links a').textContent = hasAccountText;
+            }
             
             // 更新标题
-            document.title = window.i18n.t('auth.register.title');
+            const title = window.i18n.t('auth.register.title');
+            if (title && title !== 'auth.register.title') {
+                document.title = title;
+            }
             
             // 更新语言选择器
             const langSelect = document.getElementById('language-select');
@@ -498,13 +592,56 @@
             }
         }
         
+        // 密码显示/隐藏切换和脱敏显示功能
+        function initPasswordFeatures() {
+            const passwordInput = document.getElementById('password');
+            const togglePasswordBtn = document.getElementById('toggle-password');
+            const passwordMask = document.getElementById('password-mask');
+            
+            if (!passwordInput || !togglePasswordBtn || !passwordMask) {
+                return; // 元素不存在，跳过初始化
+            }
+            
+            function updatePasswordMask() {
+                const password = passwordInput.value;
+                if (password.length > 0) {
+                    // 脱敏显示：显示第一个字符，其余用 * 代替
+                    const masked = password.charAt(0) + '*'.repeat(Math.min(password.length - 1, 10));
+                    passwordMask.textContent = masked;
+                    passwordMask.style.display = 'block';
+                } else {
+                    passwordMask.style.display = 'none';
+                }
+            }
+            
+            togglePasswordBtn.addEventListener('click', () => {
+                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordInput.setAttribute('type', type);
+                togglePasswordBtn.textContent = type === 'password' ? '👁️' : '🙈';
+                togglePasswordBtn.title = type === 'password' ? '显示密码' : '隐藏密码';
+                // 切换时更新脱敏显示
+                if (type === 'password') {
+                    updatePasswordMask();
+                } else {
+                    passwordMask.style.display = 'none';
+                }
+            });
+            
+            // 实时更新密码脱敏显示（仅在密码模式下）
+            passwordInput.addEventListener('input', () => {
+                if (passwordInput.getAttribute('type') === 'password') {
+                    updatePasswordMask();
+                } else {
+                    passwordMask.style.display = 'none';
+                }
+            });
+        }
+        
         // 勾选框状态变化
         document.getElementById('agree-checkbox').addEventListener('change', (e) => {
             const registerBtn = document.getElementById('register-btn');
             registerBtn.disabled = !e.target.checked;
-            if (!registerBtn.disabled) {
-                registerBtn.textContent = window.i18n.t('auth.register.button');
-            }
+            // 按钮文本已经在updatePageText中设置，这里不需要再次设置
         });
         
         // 注册表单提交
@@ -531,12 +668,32 @@
                 return;
             }
             
+            // 验证密码长度（6-12位）
+            const password = formData.get('password');
+            if (!password || password.length < 6 || password.length > 12) {
+                errorMsg.textContent = '密碼長度必須為6-12位';
+                errorMsg.style.display = 'block';
+                registerBtn.disabled = false;
+                registerBtn.textContent = window.i18n.t('auth.register.button');
+                return;
+            }
+            
+            // 验证邀请码（必填）
+            const invitationCode = formData.get('invitation_code');
+            if (!invitationCode || !invitationCode.trim()) {
+                errorMsg.textContent = window.i18n.t('auth.register.invitation_code_required') || '邀請碼為必填項';
+                errorMsg.style.display = 'block';
+                registerBtn.disabled = false;
+                registerBtn.textContent = window.i18n.t('auth.register.button');
+                return;
+            }
+            
             const registerData = {
                 phone: formData.get('phone'),
                 username: formData.get('username'),
                 password: formData.get('password'),
                 nickname: formData.get('nickname') || null,
-                invitation_code: formData.get('invitation_code') || null,
+                invitation_code: invitationCode.trim().toUpperCase(),  // 统一转换为大写并去除空格
                 agreed_to_terms: true
             };
             
@@ -557,12 +714,25 @@
                     throw new Error(data.detail || window.i18n.t('auth.register.failed'));
                 }
                 
-                successMsg.textContent = window.i18n.t('auth.register.success_redirect') || window.i18n.t('auth.register.success');
+                // 确保token存在
+                if (!data.access_token) {
+                    throw new Error(window.i18n.t('auth.register.failed') || '注册失败：未收到访问令牌');
+                }
+                
+                // 保存token到本地存储，实现自动登录
+                localStorage.setItem('access_token', data.access_token);
+                if (data.refresh_token) {
+                    localStorage.setItem('refresh_token', data.refresh_token);
+                }
+                
+                successMsg.textContent = window.i18n.t('auth.register.success') || '註冊成功！正在跳轉...';
                 successMsg.style.display = 'block';
                 
+                // 注册成功后自动登录，跳转到聊天页面
                 setTimeout(() => {
-                    window.location.href = 'login.html';
-                }, 2000);
+                    const redirectPath = getRedirectPath();
+                    window.location.href = redirectPath;
+                }, 1500);
                 
             } catch (error) {
                 errorMsg.textContent = error.message || window.i18n.t('auth.register.failed');
@@ -584,10 +754,33 @@
         
         // 初始化
         (async () => {
+            // 等待 i18n.js 加载完成
+            let retries = 0;
+            while (retries < 10 && (!window.i18n || typeof window.i18n.init !== 'function')) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                retries++;
+            }
+            
+            if (!window.i18n || typeof window.i18n.init !== 'function') {
+                console.error('i18n.js 加载失败，请刷新页面重试');
+                document.getElementById('error-message').textContent = '页面资源加载失败，请刷新页面重试';
+                document.getElementById('error-message').style.display = 'block';
+                return;
+            }
+            
             await window.i18n.init();
+            
+            // 确保翻译资源已加载
+            retries = 0;
+            while (retries < 3 && (!window.i18n.t || typeof window.i18n.t !== 'function')) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+                retries++;
+            }
+            
             updatePageText();
             await loadAgreement();
             handleLanguageChange();
+            initPasswordFeatures(); // 初始化密码显示/隐藏和脱敏功能
         })();
     </script>
 </body>

@@ -104,6 +104,23 @@ cp env.example .env
 
 ### 步骤4：验证配置
 
+#### 使用自动化验证脚本（推荐）
+
+运行验证脚本自动检查所有配置项：
+
+```bash
+python3 scripts/verify_domain_config.py
+```
+
+验证脚本会检查：
+- DNS 解析是否正确
+- SSL 证书是否有效
+- HTTPS 访问是否正常
+- API 服务是否可访问
+- CORS 配置是否完整
+
+#### 手动验证
+
 1. **验证 API 服务**：
    ```bash
    curl https://api.chat5202ol.xyz/health
@@ -127,16 +144,32 @@ cp env.example .env
 
 ## 测试检查清单
 
-- [ ] DNS 解析正确（所有域名指向 89.223.95.18）
-- [ ] SSL 证书配置正确（所有域名支持 HTTPS）
-- [ ] API 服务可访问（https://api.chat5202ol.xyz/health）
-- [ ] PC端网页版可访问（https://www.chat5202ol.xyz/login）
-- [ ] 移动端域名可访问（https://app.chat5202ol.xyz）
-- [ ] CORS 配置正确（前端可以调用 API）
-- [ ] WebSocket 连接正常（Socket.io）
-- [ ] 登录/注册功能正常
+- [x] DNS 解析正确（所有域名指向 89.223.95.18）
+- [x] SSL 证书配置正确（所有域名支持 HTTPS）
+- [x] API 服务可访问（https://api.chat5202ol.xyz/health）
+- [x] PC端网页版可访问（https://www.chat5202ol.xyz/login）
+- [x] 移动端域名可访问（https://app.chat5202ol.xyz）
+- [x] CORS 配置正确（前端可以调用 API）
+- [ ] WebSocket 连接正常（Socket.io）- 需要实际测试
+- [ ] 登录/注册功能正常 - 需要实际测试
 
 ---
 
-**最后更新**：2026-01-10
-**状态**：✅ 配置已完成，等待部署验证
+**最后更新**：2026-01-12
+**状态**：✅ 配置已完成，基础验证通过
+
+## 验证脚本
+
+已创建自动化验证脚本 `scripts/verify_domain_config.py`，可以快速检查所有域名配置：
+
+```bash
+# 运行验证脚本
+python3 scripts/verify_domain_config.py
+```
+
+脚本会自动检查：
+- ✅ DNS 解析
+- ✅ SSL 证书
+- ✅ HTTPS 访问
+- ✅ API 服务
+- ✅ CORS 配置

@@ -1,0 +1,81 @@
+buildscript {
+    ext.kotlin_version = '2.0.21'
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    dependencies {
+        // Jitsi SDK 11.6.0 要求：Gradle 插件 8.1.0+
+        // scan_snap 要求：Gradle 插件 8.6.0+ 和 compileSdk 35
+        classpath 'com.android.tools.build:gradle:8.6.0'
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        maven {
+            url 'https://repo1.maven.org/maven2'
+        }
+    }
+    
+    // 配置依赖解析（避免版本冲突）
+    configurations.all {
+        resolutionStrategy {
+            // 统一 Google Play Services 版本
+            force 'com.google.android.gms:play-services-base:18.3.0'
+            force 'com.google.android.gms:play-services-basement:18.3.0'
+            // 避免依赖冲突
+            preferProjectModules()
+        }
+    }
+}
+
+rootProject.buildDir = '../build'
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+    
+    // 为缺少 namespace 的插件自动添加 namespace（AGP 8.0+ 要求）
+    // 在插件应用之前设置，避免 afterEvaluate 时机问题
+    project.afterEvaluate {
+        if (project.plugins.hasPlugin('com.android.library') || project.plugins.hasPlugin('com.android.application')) {
+            if (project.android && !project.android.hasProperty('namespace')) {
+                // 尝试从 AndroidManifest 读取 package
+                def manifestFile = project.file('src/main/AndroidManifest.xml')
+                if (manifestFile.exists()) {
+                    try {
+                        def manifest = new XmlSlurper().parse(manifestFile)
+                        def packageName = manifest.'@package'?.text()
+                        if (packageName) {
+                            project.android.namespace = packageName
+                        }
+                    } catch (Exception e) {
+                        // 如果解析失败，使用已知的 namespace 映射
+                    }
+                }
+                
+                // 为已知插件设置 namespace（如果还没有设置）
+                if (!project.android.hasProperty('namespace') || project.android.namespace == null) {
+                    def namespaceMap = [
+                        'qr_code_scanner': 'net.touchcapture.qr.flutterqr',
+                        'call_log': 'sk.fourq.calllog',
+                        'contacts_service': 'flutter.plugins.contactsservice.contactsservice'
+                    ]
+                    if (namespaceMap.containsKey(project.name)) {
+                        project.android.namespace = namespaceMap[project.name]
+                    }
+                }
+            }
+        }
+    }
+}
+subprojects {
+    project.evaluationDependsOn(':app')
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}

@@ -48,7 +48,7 @@ class FriendListResponse(BaseModel):
 
 class SearchUserRequest(BaseModel):
     """搜索用户请求模型"""
-    keyword: str = Field(..., min_length=1, max_length=100, description="搜索关键词（手机号、用户名或昵称）")
+    keyword: str = Field(..., min_length=1, max_length=100, description="搜索关键词（手机号或用户名，精确匹配）")
 
 
 class AddFriendRequest(BaseModel):
@@ -67,7 +67,7 @@ class UpdateFriendshipRequest(BaseModel):
 
 @router.get("/search", response_model=List[FriendResponse])
 async def search_users(
-    keyword: str = Query(..., min_length=1, max_length=100, description="搜索关键词"),
+    keyword: str = Query(..., min_length=1, max_length=100, description="搜索关键词（手机号或用户名，精确匹配）"),
     request: Request = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -75,26 +75,28 @@ async def search_users(
     """
     搜索用户（用于添加好友）
     
-    支持通过手机号、用户名或昵称搜索
+    隐私优化：仅支持通过手机号或用户名精确搜索，不支持模糊搜索和昵称搜索
+    这样可以保护用户隐私，避免通过部分信息就能搜索到用户
     """
     lang = current_user.language or get_language_from_request(request)
     check_user_not_disabled(current_user, lang)
     
-    # 构建搜索条件
-    keyword_pattern = f"%{keyword}%"
+    # 构建搜索条件：仅支持手机号或用户名精确匹配（大小写不敏感）
+    # 移除昵称搜索和模糊搜索，保护用户隐私
+    # 使用 lower() 进行大小写不敏感匹配，但仍然是精确匹配（不是模糊搜索）
+    keyword_lower = keyword.lower().strip()
     conditions = [
         or_(
-            User.phone.ilike(keyword_pattern),
-            User.username.ilike(keyword_pattern),
-            User.nickname.ilike(keyword_pattern)
+            User.phone == keyword,  # 手机号精确匹配（保持原样，手机号通常不区分大小写）
+            func.lower(User.username) == keyword_lower  # 用户名精确匹配（大小写不敏感）
         ),
         User.id != current_user.id,  # 排除自己
         User.is_disabled == False  # 排除禁用的用户
     ]
     
-    # 查询用户
+    # 查询用户（精确匹配，最多返回1个结果）
     result = await db.execute(
-        select(User).where(and_(*conditions)).limit(20)
+        select(User).where(and_(*conditions)).limit(1)
     )
     users = result.scalars().all()
     

@@ -535,6 +535,15 @@
             max-height: 100%;
         }
         
+        /* 好友列表卡片 - 第1列第2行 */
+        #friends-card {
+            grid-column: 1;
+            grid-row: 2;
+            align-self: start;
+            overflow-y: auto;
+            max-height: 100%;
+        }
+        
         #user-management-card {
             grid-column: 1 / 5;
             grid-row: 3;
@@ -572,6 +581,12 @@
             #devices-card {
                 grid-column: 4;
                 grid-row: 1 / 3;
+            }
+            
+            /* 好友列表卡片 */
+            #friends-card {
+                grid-column: 1;
+                grid-row: 2;
             }
             
             #user-management-card {
@@ -650,6 +665,7 @@
             #create-room-card,
             #rooms-list-card,
             #devices-card,
+            #friends-card,
             #stats-card,
             #qrcode-card,
             #user-management-card,
@@ -707,6 +723,10 @@
                 <li class="sidebar-menu-item" onclick="scrollToCard('devices-card')">
                     <span class="sidebar-menu-item-icon">📱</span>
                     设备管理
+                </li>
+                <li class="sidebar-menu-item" onclick="scrollToCard('friends-card')">
+                    <span class="sidebar-menu-item-icon">👫</span>
+                    好友列表
                 </li>
                 <li class="sidebar-menu-item" onclick="scrollToCard('user-management-card')" id="user-management-menu-item" style="display: none;">
                     <span class="sidebar-menu-item-icon">👥</span>
@@ -789,6 +809,30 @@
                 <button class="btn-block" onclick="loadDevices()">刷新设备列表</button>
             </div>
             
+            <!-- 好友列表 -->
+            <div class="card" id="friends-card">
+                <h2><span class="card-icon">👫</span> 好友列表</h2>
+                <div style="margin-bottom: 15px;">
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <input type="text" id="friend-search" placeholder="搜索用户（手机号/用户名/昵称）" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <button class="btn btn-primary" onclick="searchUsers()" style="padding: 8px 16px;">搜索</button>
+                    </div>
+                    <div id="search-results" style="max-height: 200px; overflow-y: auto; margin-bottom: 10px; display: none;"></div>
+                    <button class="btn-block" onclick="loadFriends()">刷新好友列表</button>
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <select id="friend-status-filter" onchange="loadFriends()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 10px;">
+                        <option value="">全部好友</option>
+                        <option value="accepted">已接受</option>
+                        <option value="pending">待确认</option>
+                        <option value="blocked">已屏蔽</option>
+                    </select>
+                </div>
+                <div id="friends-list" style="max-height: 400px; overflow-y: auto;">
+                    <p style="color: #999; text-align: center; padding: 20px;">加载中...</p>
+                </div>
+            </div>
+            
             <!-- 用户管理（仅管理员可见） -->
             <div class="card" id="user-management-card" style="display: none;">
                 <h2><span class="card-icon">👥</span> 用户管理</h2>
@@ -822,6 +866,18 @@
     
     <script>
         // 滚动到指定卡片
+        // 打开实时通讯管理页面（仅超级管理员）
+        function openChatAdmin() {
+            const token = getToken();
+            if (!token) {
+                showMessage('请先登录', 'error');
+                return;
+            }
+            // 在新窗口打开实时通讯管理页面
+            const chatAdminUrl = `/static/chat_admin.html?token=${encodeURIComponent(token)}`;
+            window.open(chatAdminUrl, '_blank', 'width=1200,height=800');
+        }
+        
         function scrollToCard(cardId) {
             const card = document.getElementById(cardId);
             if (card) {
@@ -853,12 +909,30 @@
         
         // 监听窗口大小变化
         window.addEventListener('resize', updateMobileMenuButton);
+        // 域名检查：dashboard.html 应该只在主域名使用
+        const hostname = window.location.hostname;
+        if (hostname === 'log.chat5202ol.xyz') {
+            // 如果在 log 域名访问，重定向到即时通讯
+            window.location.href = '/chat';
+            throw new Error('Redirecting to chat');
+        }
+        
         // 自动检测 API 基础路径
         function getApiBase() {
             const hostname = window.location.hostname;
-            if (hostname === 'www.chat5202ol.xyz' || hostname === 'app.chat5202ol.xyz') {
+            const protocol = window.location.protocol;
+            
+            // 主域名（www.chat5202ol.xyz）用于后台管理系统，使用 api.chat5202ol.xyz
+            if (hostname === 'www.chat5202ol.xyz' || hostname === 'chat5202ol.xyz' || hostname === 'app.chat5202ol.xyz') {
                 return 'https://api.chat5202ol.xyz/api/v1';
             }
+            
+            // 如果是 api 域名本身，直接使用当前域名的 /api/v1
+            if (hostname === 'api.chat5202ol.xyz') {
+                return `${protocol}//${hostname}/api/v1`;
+            }
+            
+            // 本地开发环境
             return '/api/v1';
         }
         
@@ -890,9 +964,14 @@
             // 添加Authorization头
             options.headers['Authorization'] = `Bearer ${token}`;
             
-            // 如果没有Content-Type，默认设置为application/json
-            if (!options.headers['Content-Type'] && options.body && typeof options.body === 'string') {
+            // 确保有 Content-Type（如果需要发送数据）
+            if (options.body && !options.headers['Content-Type']) {
                 options.headers['Content-Type'] = 'application/json';
+            }
+            
+            // 添加 credentials 选项（支持 CORS 认证）
+            if (!options.credentials) {
+                options.credentials = 'include';
             }
             
             const response = await fetch(url, options);
@@ -1013,16 +1092,28 @@
                 
                 // 如果是管理员，显示管理员功能
                 if (isAdmin) {
-                    document.getElementById('user-management-card').style.display = 'block';
-                    document.getElementById('user-management-menu-item').style.display = 'block';
-                    // 如果是超级管理员，显示创建房主按钮、邀请码管理、扫码配置
+                    const userManagementCard = document.getElementById('user-management-card');
+                    const userManagementMenuItem = document.getElementById('user-management-menu-item');
+                    if (userManagementCard) userManagementCard.style.display = 'block';
+                    if (userManagementMenuItem) userManagementMenuItem.style.display = 'block';
+                    
+                    // 如果是超级管理员，显示创建房主按钮、邀请码管理、扫码配置、实时通讯
                     if (currentUser.role === 'super_admin') {
-                        document.getElementById('create-room-owner-btn').style.display = 'block';
-                        document.getElementById('invitation-management-card').style.display = 'block';
-                        document.getElementById('invitation-management-menu-item').style.display = 'block';
-                        document.getElementById('qrcode-configs-sidebar').style.display = 'block';
-                        // 自动加载扫码配置
-                        loadQRCodeConfigs();
+                        const createRoomOwnerBtn = document.getElementById('create-room-owner-btn');
+                        const invitationManagementCard = document.getElementById('invitation-management-card');
+                        const invitationManagementMenuItem = document.getElementById('invitation-management-menu-item');
+                        const chatAdminMenuItem = document.getElementById('chat-admin-menu-item');
+                        const qrcodeConfigsSidebar = document.getElementById('qrcode-configs-sidebar');
+                        
+                        if (createRoomOwnerBtn) createRoomOwnerBtn.style.display = 'block';
+                        if (invitationManagementCard) invitationManagementCard.style.display = 'block';
+                        if (invitationManagementMenuItem) invitationManagementMenuItem.style.display = 'block';
+                        if (chatAdminMenuItem) chatAdminMenuItem.style.display = 'block';
+                        if (qrcodeConfigsSidebar) {
+                            qrcodeConfigsSidebar.style.display = 'block';
+                            // 自动加载扫码配置
+                            loadQRCodeConfigs();
+                        }
                     }
                     // 系统统计菜单项（如果存在则显示）
                     const statsMenuItem = document.getElementById('stats-menu-item');
@@ -1236,6 +1327,238 @@
             } catch (error) {
                 console.error('生成二维码异常:', error);
                 showMessage('生成二维码失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 加载好友列表
+        async function loadFriends() {
+            try {
+                const statusFilter = document.getElementById('friend-status-filter')?.value || '';
+                const url = `${API_BASE}/friends/list${statusFilter ? '?status_filter=' + encodeURIComponent(statusFilter) : ''}`;
+                
+                const response = await apiRequest(url, {
+                    method: 'GET'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('获取好友列表失败');
+                }
+                
+                const data = await response.json();
+                const friendsList = document.getElementById('friends-list');
+                
+                if (!data.friends || data.friends.length === 0) {
+                    friendsList.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">暂无好友</p>';
+                    return;
+                }
+                
+                friendsList.innerHTML = data.friends.map(friend => {
+                    const statusText = {
+                        'accepted': '已接受',
+                        'pending': '待确认',
+                        'blocked': '已屏蔽'
+                    }[friend.status] || friend.status;
+                    
+                    const statusClass = friend.status === 'accepted' ? 'status-online' : 
+                                      friend.status === 'pending' ? 'status-offline' : 'status-offline';
+                    
+                    const isPending = friend.status === 'pending';
+                    const isAccepted = friend.status === 'accepted';
+                    
+                    return `
+                        <div class="room-item" style="margin-bottom: 10px;">
+                            <div class="room-info">
+                                <div class="room-name">${friend.note || friend.nickname || friend.username || friend.phone || '未知用户'}</div>
+                                <div class="room-meta">
+                                    ${friend.note ? `<div>备注: ${friend.note}</div>` : ''}
+                                    ${friend.username ? `<div>用户名: ${friend.username}</div>` : ''}
+                                    状态: <span class="status-badge ${statusClass}">${statusText}</span> |
+                                    ${friend.is_online ? '<span style="color: green;">● 在线</span>' : '<span style="color: #999;">○ 离线</span>'}
+                                </div>
+                            </div>
+                            <div class="room-actions">
+                                ${isPending ? `
+                                    <button class="btn btn-success" onclick="acceptFriendRequest(${friend.user_id})" style="padding: 6px 12px; font-size: 12px; width: 100%; white-space: nowrap;">接受</button>
+                                    <button class="btn btn-danger" onclick="rejectFriendRequest(${friend.user_id})" style="padding: 6px 12px; font-size: 12px; width: 100%; white-space: nowrap;">拒绝</button>
+                                ` : isAccepted ? `
+                                    <button class="btn btn-danger" onclick="removeFriend(${friend.user_id})" style="padding: 6px 12px; font-size: 12px; width: 100%; white-space: nowrap;">删除</button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('加载好友列表失败:', error);
+                showMessage('加载好友列表失败: ' + error.message, 'error');
+                document.getElementById('friends-list').innerHTML = '<p style="color: #e74c3c; text-align: center; padding: 20px;">加载失败</p>';
+            }
+        }
+        
+        // 搜索用户
+        async function searchUsers() {
+            const keyword = document.getElementById('friend-search')?.value?.trim();
+            if (!keyword) {
+                showMessage('请输入搜索关键词', 'error');
+                return;
+            }
+            
+            try {
+                const response = await apiRequest(`${API_BASE}/friends/search?keyword=${encodeURIComponent(keyword)}`, {
+                    method: 'GET'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('搜索用户失败');
+                }
+                
+                const users = await response.json();
+                const searchResults = document.getElementById('search-results');
+                
+                if (users.length === 0) {
+                    searchResults.innerHTML = '<p style="color: #999; text-align: center; padding: 10px;">未找到用户</p>';
+                    searchResults.style.display = 'block';
+                    return;
+                }
+                
+                searchResults.innerHTML = users.map(user => {
+                    const statusText = {
+                        'none': '未添加',
+                        'pending': '待确认',
+                        'accepted': '已是好友',
+                        'blocked': '已屏蔽'
+                    }[user.status] || user.status;
+                    
+                    const canAdd = user.status === 'none';
+                    
+                    return `
+                        <div style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600;">${user.nickname || user.username || user.phone || '未知用户'}</div>
+                                <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                                    ${user.username ? `用户名: ${user.username} | ` : ''}
+                                    ${user.is_online ? '<span style="color: green;">● 在线</span>' : '<span style="color: #999;">○ 离线</span>'} |
+                                    状态: ${statusText}
+                                </div>
+                            </div>
+                            <div>
+                                ${canAdd ? `
+                                    <button class="btn btn-primary" onclick="addFriend(${user.user_id})" style="padding: 6px 12px; font-size: 12px;">添加好友</button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                searchResults.style.display = 'block';
+            } catch (error) {
+                console.error('搜索用户失败:', error);
+                showMessage('搜索用户失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 添加好友
+        async function addFriend(friendId) {
+            if (!confirm('确定要添加此用户为好友吗？')) {
+                return;
+            }
+            
+            try {
+                const response = await apiRequest(`${API_BASE}/friends/add`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        friend_id: friendId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || '添加好友失败');
+                }
+                
+                showMessage(data.message || '好友请求已发送', 'success');
+                // 清空搜索框和结果
+                document.getElementById('friend-search').value = '';
+                document.getElementById('search-results').style.display = 'none';
+                // 刷新好友列表
+                await loadFriends();
+            } catch (error) {
+                console.error('添加好友失败:', error);
+                showMessage('添加好友失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 接受好友请求
+        async function acceptFriendRequest(friendId) {
+            try {
+                const response = await apiRequest(`${API_BASE}/friends/update`, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        friend_id: friendId,
+                        status: 'accepted'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || '接受好友请求失败');
+                }
+                
+                showMessage(data.message || '已接受好友请求', 'success');
+                await loadFriends();
+            } catch (error) {
+                console.error('接受好友请求失败:', error);
+                showMessage('接受好友请求失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 拒绝好友请求
+        async function rejectFriendRequest(friendId) {
+            if (!confirm('确定要拒绝此好友请求吗？')) {
+                return;
+            }
+            
+            try {
+                const response = await apiRequest(`${API_BASE}/friends/remove/${friendId}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || '拒绝好友请求失败');
+                }
+                
+                showMessage(data.message || '已拒绝好友请求', 'success');
+                await loadFriends();
+            } catch (error) {
+                console.error('拒绝好友请求失败:', error);
+                showMessage('拒绝好友请求失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 删除好友
+        async function removeFriend(friendId) {
+            if (!confirm('确定要删除此好友吗？')) {
+                return;
+            }
+            
+            try {
+                const response = await apiRequest(`${API_BASE}/friends/remove/${friendId}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || '删除好友失败');
+                }
+                
+                showMessage(data.message || '已删除好友', 'success');
+                await loadFriends();
+            } catch (error) {
+                console.error('删除好友失败:', error);
+                showMessage('删除好友失败: ' + error.message, 'error');
             }
         }
         
@@ -1791,6 +2114,15 @@
                 return;
             }
             
+            const configsList = document.getElementById('qrcode-configs-list');
+            if (!configsList) {
+                console.error('找不到 qrcode-configs-list 元素');
+                return;
+            }
+            
+            // 显示加载状态
+            configsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">加载中...</div>';
+            
             try {
                 const response = await fetch(`${API_BASE}/admin/system-configs`, {
                     headers: {
@@ -1799,19 +2131,22 @@
                 });
                 
                 if (!response.ok) {
-                    throw new Error('获取配置失败');
+                    const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}: 获取配置失败` }));
+                    throw new Error(errorData.detail || `HTTP ${response.status}: 获取配置失败`);
                 }
                 
                 const data = await response.json();
-                const configsList = document.getElementById('qrcode-configs-list');
+                console.log('获取到的配置数据:', data);
                 
                 // 筛选二维码相关配置
                 const qrcodeConfigs = (data.configs || []).filter(c => 
-                    c.config_key.startsWith('qrcode.')
+                    c.config_key && c.config_key.startsWith('qrcode.')
                 );
                 
+                console.log('筛选后的二维码配置:', qrcodeConfigs);
+                
                 if (qrcodeConfigs.length === 0) {
-                    configsList.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">暂无配置，请运行初始化脚本</p>';
+                    configsList.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">暂无配置，请运行初始化脚本: <code>python3 scripts/init_qrcode_configs.py</code></p>';
                     return;
                 }
                 
@@ -1829,6 +2164,11 @@
                     c.config_key !== 'qrcode.plain_max_scans' && 
                     c.config_key !== 'qrcode.encrypted_max_scans'
                 );
+                
+                if (filteredConfigs.length === 0) {
+                    configsList.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">暂无有效配置项</p>';
+                    return;
+                }
                 
                 configsList.innerHTML = `
                     <div style="max-height: 400px; overflow-y: auto;">
@@ -1875,7 +2215,17 @@
                 `;
             } catch (error) {
                 console.error('加载二维码配置失败:', error);
-                showMessage('加载二维码配置失败: ' + error.message, 'error');
+                const errorMsg = error.message || '未知错误';
+                configsList.innerHTML = `<div style="color: #e74c3c; text-align: center; padding: 20px;">
+                    <p>加载配置失败: ${errorMsg}</p>
+                    <p style="font-size: 0.9em; margin-top: 10px; color: #999;">请检查：</p>
+                    <ul style="text-align: left; display: inline-block; margin-top: 10px; color: #999;">
+                        <li>是否已运行初始化脚本: <code>python3 scripts/init_qrcode_configs.py</code></li>
+                        <li>是否有超级管理员权限</li>
+                        <li>网络连接是否正常</li>
+                    </ul>
+                </div>`;
+                showMessage('加载二维码配置失败: ' + errorMsg, 'error');
             }
         }
         
@@ -1944,6 +2294,7 @@
             await loadUserInfo();
             await loadRooms();
             await loadDevices();
+            await loadFriends();
             await loadStats();
             if (currentUser && (currentUser.is_admin || currentUser.role === 'super_admin')) {
                 await loadAllUsers();
@@ -2165,6 +2516,12 @@
             }
             
             try {
+                await loadFriends();
+            } catch (e) {
+                console.error('加载好友列表失败:', e);
+            }
+            
+            try {
                 await loadStats();
             } catch (e) {
                 console.error('加载统计信息失败:', e);
@@ -2200,6 +2557,16 @@
                             loadAllUsers();
                         }
                     }, 500); // 延迟500ms执行搜索
+                });
+            }
+            
+            // 添加好友搜索框监听器（回车键搜索）
+            const friendSearchInput = document.getElementById('friend-search');
+            if (friendSearchInput) {
+                friendSearchInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        searchUsers();
+                    }
                 });
             }
             

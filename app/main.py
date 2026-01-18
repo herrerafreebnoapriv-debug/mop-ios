@@ -89,24 +89,42 @@ app = FastAPI(
 )
 
 # 配置 CORS 中间件
-# 使用 allow_origin_regex 支持通配符域名，或直接使用列表
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://www.chat5202ol.xyz",
-        "https://app.chat5202ol.xyz",
-        "https://chat5202ol.xyz",
-        "https://api.chat5202ol.xyz",
+# 使用 allow_origins 从配置中读取，如果没有配置则使用默认值
+cors_origins = settings.cors_origins_list
+if not cors_origins:
+    # 默认值
+    cors_origins = [
+        "https://www.chat5202ol.xyz",      # 主域名：后台管理系统
+        "https://chat5202ol.xyz",          # 主域名（备用）
+        "https://log.chat5202ol.xyz",      # log域名：即时通讯
+        "https://app.chat5202ol.xyz",      # 移动端应用
+        "https://api.chat5202ol.xyz",      # API服务域名
         "http://localhost:3000",
         "http://localhost:8080",
         "http://localhost:8000",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:8080",
         "http://127.0.0.1:8000",
-    ],
+    ]
+
+logger.info(f"配置 CORS 允许的源: {cors_origins}")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=[
+        "accept",
+        "accept-language",
+        "Accept-Language",
+        "authorization",
+        "Authorization",
+        "content-type",
+        "Content-Type",
+        "x-requested-with",
+        "X-Requested-With",
+    ],
     expose_headers=["*"],
 )
 
@@ -204,9 +222,25 @@ if static_dir.exists():
             return FileResponse(login_file)
         return {"error": "Login page not found"}
     
+    @app.get("/login.html", tags=["认证"])
+    async def login_html_page():
+        """登录页面（HTML文件路径）"""
+        login_file = static_dir / "login.html"
+        if login_file.exists():
+            return FileResponse(login_file)
+        return {"error": "Login page not found"}
+    
     @app.get("/register", tags=["认证"])
     async def register_page():
         """注册页面"""
+        register_file = static_dir / "register.html"
+        if register_file.exists():
+            return FileResponse(register_file)
+        return {"error": "Register page not found"}
+    
+    @app.get("/register.html", tags=["认证"])
+    async def register_html_page():
+        """注册页面（HTML文件路径）"""
         register_file = static_dir / "register.html"
         if register_file.exists():
             return FileResponse(register_file)
@@ -236,6 +270,14 @@ if static_dir.exists():
             return FileResponse(scan_join_file)
         return {"error": "Scan join page not found"}
     
+    @app.get("/chat", tags=["应用"])
+    async def chat_page():
+        """聊天页面"""
+        chat_file = static_dir / "chat.html"
+        if chat_file.exists():
+            return FileResponse(chat_file)
+        return {"error": "Chat page not found"}
+    
     @app.get("/test_user_info", tags=["测试"])
     async def test_user_info_page():
         """测试用户信息 API 页面"""
@@ -251,6 +293,41 @@ if static_dir.exists():
         if test_file.exists():
             return FileResponse(test_file)
         return {"error": "Test page not found"}
+    
+    # APK 下载端点
+    @app.get("/download/apk", tags=["下载"])
+    async def download_apk():
+        """下载 Android APK 文件（arm64-v8a 架构）"""
+        apk_file = static_dir / "mop-app-arm64-v8a-release.apk"
+        if apk_file.exists():
+            return FileResponse(
+                path=str(apk_file),
+                media_type="application/vnd.android.package-archive",
+                filename="mop-app-arm64-v8a-release.apk",
+                headers={
+                    "Content-Disposition": "attachment; filename=mop-app-arm64-v8a-release.apk"
+                }
+            )
+        return {"error": "APK file not found"}
+    
+    @app.get("/download/apk/info", tags=["下载"])
+    async def apk_info():
+        """获取 APK 文件信息"""
+        apk_file = static_dir / "mop-app-arm64-v8a-release.apk"
+        if apk_file.exists():
+            import os
+            stat = os.stat(apk_file)
+            return {
+                "filename": "mop-app-arm64-v8a-release.apk",
+                "size": stat.st_size,
+                "size_mb": round(stat.st_size / (1024 * 1024), 2),
+                "architecture": "arm64-v8a",
+                "build_type": "release",
+                "download_url": "/download/apk",
+                "static_url": "/static/mop-app-arm64-v8a-release.apk",
+                "modified_time": stat.st_mtime
+            }
+        return {"error": "APK file not found"}
 
 
 if __name__ == "__main__":

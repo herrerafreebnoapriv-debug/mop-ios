@@ -168,6 +168,10 @@
                         mobileAppPromo: false,
                         // 启用 JWT 认证
                         enableJwt: !!jwtToken,
+                        // 重要：限制权限，确保游客不会成为主持人
+                        // 如果 JWT token 中没有 moderator: true，则限制权限
+                        startAudioMuted: false,
+                        startVideoMuted: false,
                         // 禁用分析（可能包含外链）
                         analytics: {},
                         // 禁用录制服务（可能包含外链）
@@ -260,8 +264,47 @@
                 );
                 
                 // 监听事件
-                api.addEventListener('videoConferenceJoined', () => {
-                    console.log('成功加入视频会议');
+                api.addEventListener('videoConferenceJoined', (event) => {
+                    console.log('成功加入视频会议', event);
+                    
+                    // 重要：确保游客不会成为主持人
+                    // 如果 JWT token 中没有 moderator: true，则检查并移除主持人权限
+                    if (jwtToken) {
+                        try {
+                            // 解析 JWT token 检查 moderator 字段
+                            const tokenParts = jwtToken.split('.');
+                            if (tokenParts.length === 3) {
+                                const payload = JSON.parse(atob(tokenParts[1]));
+                                const isModerator = payload?.context?.user?.moderator === true;
+                                
+                                console.log('JWT Token 中的 moderator 状态:', isModerator);
+                                
+                                // 如果不是主持人，确保移除主持人权限
+                                if (!isModerator) {
+                                    // 延迟执行，确保 Jitsi 完全初始化
+                                    setTimeout(() => {
+                                        try {
+                                            // 检查当前是否是主持人
+                                            api.isModerator().then((isMod) => {
+                                                if (isMod) {
+                                                    console.warn('警告：检测到游客被设为主持人！JWT token 中 moderator: false，但实际获得了主持人权限');
+                                                    console.warn('这可能是 Jitsi 服务器配置问题，需要检查 Prosody 配置');
+                                                } else {
+                                                    console.log('✓ 确认：游客不是主持人，符合预期');
+                                                }
+                                            }).catch(err => {
+                                                console.error('检查主持人状态失败:', err);
+                                            });
+                                        } catch (e) {
+                                            console.error('处理主持人权限时出错:', e);
+                                        }
+                                    }, 2000);
+                                }
+                            }
+                        } catch (e) {
+                            console.error('解析 JWT token 失败:', e);
+                        }
+                    }
                 });
                 
                 api.addEventListener('videoConferenceLeft', () => {
@@ -278,6 +321,27 @@
                 
                 api.addEventListener('participantJoined', (participant) => {
                     console.log('参与者加入:', participant);
+                });
+                
+                // 监听主持人权限变化
+                api.addEventListener('moderatorChanged', (event) => {
+                    console.log('主持人权限变化:', event);
+                    // 如果游客被意外设为主持人，记录警告
+                    if (jwtToken) {
+                        try {
+                            const tokenParts = jwtToken.split('.');
+                            if (tokenParts.length === 3) {
+                                const payload = JSON.parse(atob(tokenParts[1]));
+                                const isModerator = payload?.context?.user?.moderator === true;
+                                if (!isModerator && event.moderator) {
+                                    console.warn('警告：游客被意外设为主持人！JWT token 中 moderator: false');
+                                    console.warn('这可能是 Jitsi 服务器配置问题，需要检查 Prosody 配置');
+                                }
+                            }
+                        } catch (e) {
+                            console.error('解析 JWT token 失败:', e);
+                        }
+                    }
                 });
                 
                 api.addEventListener('participantLeft', (participant) => {

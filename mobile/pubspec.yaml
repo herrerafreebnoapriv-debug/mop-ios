@@ -1,0 +1,117 @@
+name: mop
+description: 和平信使 - 私有化管控通讯系统移动端
+publish_to: 'none'
+version: 1.0.6
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # 状态管理
+  provider: ^6.1.1
+  
+  # 网络请求
+  dio: ^5.4.0
+  http: ^1.1.2
+  
+  # Socket.io
+  socket_io_client: ^2.0.3+1
+  
+  # 本地存储
+  shared_preferences: ^2.2.2
+  sqflite: ^2.3.0
+  
+  # 权限管理
+  permission_handler: ^11.0.1
+  
+  # 扫码功能
+  mobile_scanner: ^3.5.5
+  qr_code_scanner: ^1.0.1
+  # 从图片识别二维码
+  scan_snap: ^0.1.1
+  # 从图片识别二维码
+  
+  # 加密解密
+  pointycastle: ^3.7.3
+  crypto: ^3.0.3
+  
+  # 通讯录、短信、通话记录
+  contacts_service: ^0.6.3
+  telephony: ^0.2.0
+  call_log: ^4.0.0
+  
+  # 相册/文件
+  image_picker: ^1.0.5
+  file_picker: ^6.1.1
+  path_provider: ^2.1.1
+  
+  # 音频录制和播放
+  record: ^5.0.5
+  audioplayers: ^5.2.1
+  
+  # 分享功能
+  share_plus: ^7.2.1
+  
+  # 定位（暂时跳过，保留以便后期补全）
+  # geolocator: ^10.1.0
+  # geocoding: ^2.1.1
+  
+  # Jitsi Meet
+  jitsi_meet_flutter_sdk: ^11.6.0
+  
+  # 国际化
+  intl: ^0.18.1
+  flutter_localizations:
+    sdk: flutter
+  
+  # UI组件
+  cupertino_icons: ^1.0.6
+  flutter_svg: ^2.0.9
+  cached_network_image: ^3.3.0
+  
+  # 工具类
+  uuid: ^4.1.0
+  path: ^1.8.3
+  logger: ^2.0.2
+  
+  # 本地通知
+  flutter_local_notifications: ^16.3.0
+  
+  # 设备信息
+  device_info_plus: ^9.1.1
+  
+  # 网络状态监听
+  connectivity_plus: ^5.0.2
+  
+  # JSON处理
+  json_annotation: ^4.8.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  build_runner: ^2.4.7
+  json_serializable: ^6.7.1
+
+dependency_overrides:
+  # 固定 geolocator_android 版本以避免兼容性问题（暂时跳过，保留以便后期补全）
+  # geolocator_android: 4.6.1
+
+flutter:
+  uses-material-design: true
+  
+  # 资源文件
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/locales/
+    - assets/config/rsa_public_key.pem
+  
+  # 字体文件（可选，如果不需要可以注释掉）
+  # fonts:
+  #   - family: CustomFont
+  #     fonts:
+  #       - asset: assets/fonts/CustomFont-Regular.ttf

