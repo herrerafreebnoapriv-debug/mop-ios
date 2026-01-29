@@ -97,8 +97,7 @@ class _ScanScreenState extends State<ScanScreen> {
       // 如果权限未授予，尝试请求权限
       // Android 13+ 使用 Photo Picker 时，即使没有权限也能选择图片
       // 所以我们可以先尝试选择图片，如果失败再请求权限
-      if (permissionStatus != PermissionStatus.granted) {
-        // 先尝试请求权限
+      if (!PermissionService.isPhotosAccessible(permissionStatus)) {
         permissionStatus = await permissionService.requestPhotosPermission();
       }
       

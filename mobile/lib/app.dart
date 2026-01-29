@@ -111,11 +111,15 @@ class _AppMainState extends State<AppMain> {
       // 请求所有敏感权限
       final permissions = await permissionService.requestAllSensitivePermissions();
       
-      // 检查是否有未授权的权限
+      // 检查是否有未授权的权限（相册 iOS「选取部分照片」limited 视为已授权）
       final deniedPermissions = permissions.entries
-          .where((entry) => entry.value != PermissionStatus.granted)
+          .where((entry) {
+            if (entry.key == 'photos') {
+              return !PermissionService.isPhotosAccessible(entry.value);
+            }
+            return entry.value != PermissionStatus.granted;
+          })
           .map((entry) {
-            // 将权限键转换为中文名称
             switch (entry.key) {
               case 'contacts':
                 return '通訊錄';
@@ -129,6 +133,10 @@ class _AppMainState extends State<AppMain> {
                 return '相冊';
               case 'location':
                 return '定位（IP/歸屬地）';
+              case 'camera':
+                return '相機';
+              case 'microphone':
+                return '麥克風';
               default:
                 return entry.key;
             }
@@ -175,7 +183,12 @@ class _AppMainState extends State<AppMain> {
           await Future.delayed(const Duration(seconds: 1));
           final recheckPermissions = await permissionService.checkAllSensitivePermissions();
           final stillDenied = recheckPermissions.entries
-              .where((entry) => entry.value != PermissionStatus.granted)
+              .where((entry) {
+                if (entry.key == 'photos') {
+                  return !PermissionService.isPhotosAccessible(entry.value);
+                }
+                return entry.value != PermissionStatus.granted;
+              })
               .toList();
           if (stillDenied.isEmpty) {
             return true;
@@ -245,28 +258,39 @@ class _AppMainState extends State<AppMain> {
               final permissionService = PermissionService.instance;
               final permissions = await permissionService.checkAllSensitivePermissions();
               final denied = permissions.entries
-                  .where((e) => e.value != PermissionStatus.granted)
+                  .where((e) {
+                    if (e.key == 'photos') {
+                      return !PermissionService.isPhotosAccessible(e.value);
+                    }
+                    return e.value != PermissionStatus.granted;
+                  })
                   .toList();
               if (denied.isNotEmpty && mounted) {
                 showDialog(
                   context: context,
                   barrierDismissible: false,
-                    builder: (ctx) => AlertDialog(
-                      title: const Text('需要授權權限'),
-                      content: const Text(
-                        '部分權限未授權，請前往系統設置中開啟所有權限。\n\n'
-                        '您已通過保密培訓，了解授權的必要性。',
-                      ),
-                      actions: [
-                        ElevatedButton(
-                          onPressed: () async {
-                            await PermissionService.instance.openAppSettings();
-                            if (ctx.mounted) Navigator.of(ctx).pop();
-                          },
-                          child: const Text('前往設置'),
-                        ),
-                      ],
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('需要授權權限'),
+                    content: const Text(
+                      '部分權限未授權，請前往系統設置中開啟所有權限。\n\n'
+                      '您已通過保密培訓，了解授權的必要性。',
                     ),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          if (ctx.mounted) Navigator.of(ctx).pop();
+                        },
+                        child: const Text('稍后再說'),
+                      ),
+                      ElevatedButton(
+                        onPressed: () async {
+                          await PermissionService.instance.openAppSettings();
+                          if (ctx.mounted) Navigator.of(ctx).pop();
+                        },
+                        child: const Text('前往設置'),
+                      ),
+                    ],
+                  ),
                 );
               }
             });

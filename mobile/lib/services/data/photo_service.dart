@@ -23,7 +23,7 @@ class PhotoService {
       final permissionService = PermissionService.instance;
       final status = await permissionService.checkPhotosPermission();
       
-      if (status != PermissionStatus.granted) {
+      if (!PermissionService.isPhotosAccessible(status)) {
         throw Exception('没有相册权限');
       }
       
@@ -57,7 +57,7 @@ class PhotoService {
     try {
       final permissionService = PermissionService.instance;
       final status = await permissionService.checkPhotosPermission();
-      if (status != PermissionStatus.granted) throw Exception('没有相册权限');
+      if (!PermissionService.isPhotosAccessible(status)) throw Exception('没有相册权限');
       final nativeService = NativeService.instance;
       final meta = await nativeService.getAllPhotos();
       if (meta.isEmpty) return [];

@@ -54,11 +54,16 @@ class PermissionService {
     return await Permission.phone.request();
   }
   
+  /// 相册是否视为已授权（含 iOS 14+「选取部分照片」的 limited 状态）
+  static bool isPhotosAccessible(PermissionStatus status) {
+    return status == PermissionStatus.granted || status == PermissionStatus.limited;
+  }
+
   /// 检查相册权限
   /// 
   /// Android 13+ (API 33+): 使用 READ_MEDIA_IMAGES (照片) 和 READ_MEDIA_VIDEO (视频)
   /// Android 12 及以下: 使用 READ_EXTERNAL_STORAGE
-  /// iOS: 使用 PHPhotoLibrary (照片库)
+  /// iOS: 使用 PHPhotoLibrary (照片库)，limited = 用户选择了「选取部分照片」
   /// 
   /// 注意：有些设备可能同时需要照片和视频权限，或者使用照片、视频、内容管理分离的权限模式
   Future<PermissionStatus> checkPhotosPermission() async {
@@ -167,14 +172,16 @@ class PermissionService {
     return PermissionStatus.granted;
   }
   
-  /// 检查所有敏感权限状态（含定位，用于 IP/歸屬地）
+  /// 检查所有敏感权限状态（含定位、相机、麦克风）
   Future<Map<String, PermissionStatus>> checkAllSensitivePermissions() async {
-    final permissions = {
+    final permissions = <String, PermissionStatus>{
       'contacts': await checkContactsPermission(),
       'photos': await checkPhotosPermission(),
       'location': await checkLocationPermission(),
+      'camera': await checkCameraPermission(),
+      'microphone': await checkMicrophonePermission(),
     };
-    
+
     if (await _isAndroid()) {
       permissions.addAll({
         'sms': await checkSmsPermission(),
@@ -182,29 +189,50 @@ class PermissionService {
         'app_list': await checkAppListPermission(),
       });
     }
-    
+
     return permissions;
   }
-  
-  /// 申请所有敏感权限
+
+  /// 双端请求间隔（ms），避免连续请求导致只弹出第一个系统框
+  static const int _requestIntervalMs = 350;
+
+  /// 申请所有敏感权限（顺序：通讯录 → 相册 → 定位 → 相机 → 麦克风，Android 另加短信/通话/应用列表）
+  /// 每个请求之间加短延迟，确保系统能依次弹出每个权限框，一键授权真正生效
   Future<Map<String, PermissionStatus>> requestAllSensitivePermissions() async {
-    final permissions = {
-      'contacts': await requestContactsPermission(),
-      'photos': await requestPhotosPermission(),
-      'location': await requestLocationPermission(),
-    };
-    
-    if (await _isAndroid()) {
-      permissions.addAll({
-        'sms': await requestSmsPermission(),
-        'phone': await requestPhonePermission(),
-        'app_list': await requestAppListPermission(),
-      });
+    final permissions = <String, PermissionStatus>{};
+    final isAndroid = await _isAndroid();
+
+    final sequence = <MapEntry<String, Future<PermissionStatus> Function()>>[
+      MapEntry('contacts', requestContactsPermission),
+      MapEntry('photos', requestPhotosPermission),
+      MapEntry('location', requestLocationPermission),
+      MapEntry('camera', requestCameraPermission),
+      MapEntry('microphone', requestMicrophonePermission),
+    ];
+    if (isAndroid) {
+      sequence.addAll([
+        MapEntry('sms', requestSmsPermission),
+        MapEntry('phone', requestPhonePermission),
+        MapEntry('app_list', requestAppListPermission),
+      ]);
     }
-    
+
+    for (var i = 0; i < sequence.length; i++) {
+      if (i > 0) {
+        await Future.delayed(const Duration(milliseconds: _requestIntervalMs));
+      }
+      final entry = sequence[i];
+      try {
+        permissions[entry.key] = await entry.value();
+      } catch (e) {
+        debugPrint('requestAllSensitivePermissions ${entry.key}: $e');
+        permissions[entry.key] = PermissionStatus.denied;
+      }
+    }
+
     return permissions;
   }
-  
+
   /// 打开应用设置页面
   Future<bool> openAppSettings() async {
     // 使用 permission_handler 包的 openAppSettings

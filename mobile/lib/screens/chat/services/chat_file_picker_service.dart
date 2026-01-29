@@ -15,15 +15,13 @@ class ChatFilePickerService {
     try {
       var permissionStatus = await PermissionService.instance.checkPhotosPermission();
       
-      if (permissionStatus != PermissionStatus.granted) {
+      if (!PermissionService.isPhotosAccessible(permissionStatus)) {
         permissionStatus = await PermissionService.instance.requestPhotosPermission();
-        
-        if (permissionStatus == PermissionStatus.granted) {
+        if (PermissionService.isPhotosAccessible(permissionStatus)) {
           await Future.delayed(const Duration(milliseconds: 100));
           permissionStatus = await PermissionService.instance.checkPhotosPermission();
         }
-        
-        if (permissionStatus != PermissionStatus.granted) {
+        if (!PermissionService.isPhotosAccessible(permissionStatus)) {
           if (context.mounted) {
             final l10n = AppLocalizations.of(context);
             ScaffoldMessenger.of(context).showSnackBar(
