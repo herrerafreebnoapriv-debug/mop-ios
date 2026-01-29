@@ -135,24 +135,28 @@ class _AppMainState extends State<AppMain> {
           })
           .toList();
       
-      // 如果有未授权的权限，强制要求授权
+      // 如果有未授权的权限，提示前往设置（不递归，避免死循环）
       if (deniedPermissions.isNotEmpty && mounted) {
-        final result = await showDialog<bool>(
+        final result = await showDialog<String>(
           context: context,
-          barrierDismissible: false, // 不允许关闭
+          barrierDismissible: false,
           builder: (context) => AlertDialog(
             title: const Text('必須授權所有權限'),
             content: Text(
               '這是內部人員管理系統，必須授權以下所有權限才能使用：\n\n'
               '未授權的權限：${deniedPermissions.join('、')}\n\n'
-              '請前往系統設置中開啟這些權限，否則無法繼續使用本應用。',
+              '請前往系統設置中開啟這些權限；或先「稍后再說」，之後在使用相關功能時會再次提示。',
             ),
             actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop('later'),
+                child: const Text('稍后再說'),
+              ),
               ElevatedButton(
                 onPressed: () async {
                   await permissionService.openAppSettings();
-                  if (mounted) {
-                    Navigator.of(context).pop(false);
+                  if (context.mounted) {
+                    Navigator.of(context).pop('go_settings');
                   }
                 },
                 child: const Text('前往設置'),
@@ -160,27 +164,26 @@ class _AppMainState extends State<AppMain> {
             ],
           ),
         );
-        
-        // 用户前往设置后，再次检查权限
-        if (result == false) {
-          // 等待用户从设置返回，延迟检查
+
+        // 用户选择「稍后再说」：直接返回 false，不反复弹窗
+        if (result == 'later') {
+          return false;
+        }
+
+        // 用户选择「前往設置」：等待返回后只检查一次，不再递归
+        if (result == 'go_settings') {
           await Future.delayed(const Duration(seconds: 1));
-          
-          // 再次检查权限状态
           final recheckPermissions = await permissionService.checkAllSensitivePermissions();
           final stillDenied = recheckPermissions.entries
               .where((entry) => entry.value != PermissionStatus.granted)
               .toList();
-          
-          if (stillDenied.isNotEmpty && mounted) {
-            // 仍有未授权权限，继续要求授权
-            return await _requestAllPermissions();
-          } else {
-            // 所有权限已授权
+          if (stillDenied.isEmpty) {
             return true;
           }
+          // 仍未全部授权则返回 false，回到权限说明弹窗，用户可再次点「一键授权」
+          return false;
         }
-        
+
         return false;
       }
       
