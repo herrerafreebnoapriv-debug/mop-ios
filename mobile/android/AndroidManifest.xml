@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.mop.app">
+    package="com.wiwi.WaterSeven4.application">
     <application>
         <meta-data
             android:name="flutterEmbedding"

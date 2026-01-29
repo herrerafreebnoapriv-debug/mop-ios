@@ -14,12 +14,12 @@ workflows:
     environment:
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.mop.app
+        bundle_identifier: com.wiwi.WaterSeven4.application
       vars:
         XCODE_WORKSPACE: "ios/Runner.xcworkspace"
         APP_STORE_APP_ID: "1234567890"   # 在 App Store Connect 创建应用后替换
         XCODE_SCHEME: "Runner"
-        BUNDLE_ID: com.mop.app
+        BUNDLE_ID: com.wiwi.WaterSeven4.application
         ENTRY_POINT: "lib/main.dart"
       flutter: stable
       xcode: latest

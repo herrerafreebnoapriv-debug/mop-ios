@@ -73,7 +73,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.mop.app"
+        applicationId "com.wiwi.WaterSeven4.application"
         minSdkVersion 26  // Jitsi SDK 11.6.0 硬性要求：必须 >= 26
         targetSdkVersion 34  // 对应 Android 14
         versionCode flutterVersionCode.toInteger()
