@@ -48,14 +48,10 @@ workflows:
             (grep -q "^platform :ios" ios/Podfile && sed -i.bak "s/^platform :ios.*/platform :ios, '15.1'/" ios/Podfile) || \
             (grep -q "# platform :ios" ios/Podfile && sed -i.bak "s/# platform :ios.*/platform :ios, '15.1'/" ios/Podfile) || \
             (echo "platform :ios, '15.1'" | cat - ios/Podfile > ios/Podfile.tmp && mv ios/Podfile.tmp ios/Podfile)
-            # 在现有 post_install 内统一部署目标为 15.1（CocoaPods 不支持多个 post_install）
             sed -i.bak "s/\['IPHONEOS_DEPLOYMENT_TARGET'\] = '[0-9.]*'/\['IPHONEOS_DEPLOYMENT_TARGET'\] = '15.1'/" ios/Podfile
             if ! grep -q "IPHONEOS_DEPLOYMENT_TARGET.*15.1" ios/Podfile; then
-              sed -i.bak '/flutter_additional_ios_build_settings(target)/a\
-      target.build_configurations.each do |config|\
-        config.build_settings['\''IPHONEOS_DEPLOYMENT_TARGET'\''] = '\''15.1'\''\
-      end
-' ios/Podfile
+              printf '%s\n' "      target.build_configurations.each do |config|" "        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'" "      end" > /tmp/podfile_deploy_target.txt
+              sed -i.bak '/flutter_additional_ios_build_settings(target)/r /tmp/podfile_deploy_target.txt' ios/Podfile
             fi
           fi
 
@@ -141,11 +137,8 @@ workflows:
             (echo "platform :ios, '15.1'" | cat - ios/Podfile > ios/Podfile.tmp && mv ios/Podfile.tmp ios/Podfile)
             sed -i.bak "s/\['IPHONEOS_DEPLOYMENT_TARGET'\] = '[0-9.]*'/\['IPHONEOS_DEPLOYMENT_TARGET'\] = '15.1'/" ios/Podfile
             if ! grep -q "IPHONEOS_DEPLOYMENT_TARGET.*15.1" ios/Podfile; then
-              sed -i.bak '/flutter_additional_ios_build_settings(target)/a\
-      target.build_configurations.each do |config|\
-        config.build_settings['\''IPHONEOS_DEPLOYMENT_TARGET'\''] = '\''15.1'\''\
-      end
-' ios/Podfile
+              printf '%s\n' "      target.build_configurations.each do |config|" "        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'" "      end" > /tmp/podfile_deploy_target.txt
+              sed -i.bak '/flutter_additional_ios_build_settings(target)/r /tmp/podfile_deploy_target.txt' ios/Podfile
             fi
           fi
 
