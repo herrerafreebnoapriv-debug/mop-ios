@@ -65,10 +65,16 @@ workflows:
 
       - name: 构建 IPA（使用时间戳作为 build 号）
         script: |
+          set -e
+          EXPORT_OPTIONS="${HOME}/export_options.plist"
+          if [ ! -f "$EXPORT_OPTIONS" ]; then
+            echo "Error: $EXPORT_OPTIONS not found. Ensure 'xcode-project use-profiles' ran successfully."
+            exit 1
+          fi
           flutter build ipa --release \
             --build-name=1.0.0 \
             --build-number=$(date +%Y%m%d%H%M) \
-            --export-options-plist=/Users/builder/export_options.plist \
+            --export-options-plist="$EXPORT_OPTIONS" \
             -t "$ENTRY_POINT"
 
     artifacts:
@@ -152,10 +158,16 @@ workflows:
 
       - name: 构建 IPA（自动递增 build 号）
         script: |
+          set -e
+          EXPORT_OPTIONS="${HOME}/export_options.plist"
+          if [ ! -f "$EXPORT_OPTIONS" ]; then
+            echo "Error: $EXPORT_OPTIONS not found. Ensure 'xcode-project use-profiles' ran successfully."
+            exit 1
+          fi
           flutter build ipa --release \
             --build-name=1.0.0 \
             --build-number=$(($(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID") + 1)) \
-            --export-options-plist=/Users/builder/export_options.plist \
+            --export-options-plist="$EXPORT_OPTIONS" \
             -t "$ENTRY_POINT"
 
     artifacts:

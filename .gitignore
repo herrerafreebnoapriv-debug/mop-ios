@@ -1,7 +1,11 @@
 # 环境与密钥（勿提交）
 .env
+.env.backup
 *.env.local
 jitsi.env
+id_rsa
+id_rsa_2048
+id_rsa_*
 !jitsi.env.example
 !env.example
 
@@ -18,7 +22,7 @@ __pycache__/
 venv/
 ENV/
 
-# 构建与产物
+# 构建与产物（规则：不提交 APK/IPA/AAB，仅通过构建产物或下载页分发）
 build_output/
 builds/
 mobile/build/
@@ -29,6 +33,7 @@ mobile/.packages
 *.aab
 static/apk/*.apk
 static/apk/*.sha256
+static/**/*.apk
 !static/apk/download.html
 !static/apk/latest-build-info.txt
 

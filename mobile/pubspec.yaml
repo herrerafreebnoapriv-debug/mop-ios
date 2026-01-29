@@ -104,6 +104,8 @@ dev_dependencies:
 dependency_overrides:
   # 固定 geolocator_android 版本以避免兼容性问题（暂时跳过，保留以便后期补全）
   # geolocator_android: 4.6.1
+  # 解决 Codemagic/新 Dart SDK 下 win32 使用已移除的 UnmodifiableUint8ListView 导致编译失败
+  win32: ^5.6.0
 
 flutter:
   uses-material-design: true

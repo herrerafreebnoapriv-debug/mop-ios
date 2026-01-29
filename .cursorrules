@@ -37,3 +37,9 @@
 -**安全反制意识**：在编写移动端逻辑时，优先实现 SecurityService 进行调试模式检测。
 
 -**双重加密流**：所有敏感数据传输必须在 HTTPS 基础上，额外进行应用层 AES 加密。
+
+## 6. 构建产物与分发
+- **不提交安装包**：严禁将 APK、IPA、AAB 等安装包提交到 Git 仓库。安装包仅通过以下方式分发：
+    - **构建产物**：CI/CD（如 Codemagic、GitHub Actions）产出的 Artifact 或下载链接。
+    - **下载页**：自建下载页（如 `static/apk/download.html`）提供已构建好的安装包链接，安装包文件存放在服务器或对象存储，不纳入版本库。
+- 仓库中已用 `.gitignore` 排除 `*.apk`、`*.ipa`、`*.aab` 及 `build_output/`、`builds/`、`static/apk/*.apk` 等路径，提交前请确认未误加入安装包。
