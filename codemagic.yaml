@@ -1,7 +1,81 @@
 # mop-ios 无 Mac 云构建：Flutter 应用在 mobile/ 子目录
 # 文档：https://docs.codemagic.io/flutter-configuration/flutter-projects
+#
+# 若报错 "App Store Connect integration codemagic does not exist"：
+# 在 Codemagic Teams → Integrations 中创建名为 "codemagic" 的 App Store Connect 集成
+# （Issuer ID、Key ID、.p8 私钥），或使用下方 ios-build-only 流程（仅构建、不上传）
 
 workflows:
+  # 仅构建 IPA，不依赖 App Store Connect 集成（适合先打出包、再手动上传）
+  ios-build-only:
+    name: iOS Build Only（无 App Store Connect）
+    working_directory: mobile
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.wiwi.WaterSeven4.application
+      vars:
+        XCODE_SCHEME: "Runner"
+        BUNDLE_ID: com.wiwi.WaterSeven4.application
+        ENTRY_POINT: "lib/main.dart"
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+        - pattern: master
+          include: true
+          source: true
+
+    scripts:
+      - name: 清理并获取依赖
+        script: |
+          flutter clean
+          flutter pub get
+
+      - name: 安装 CocoaPods
+        script: |
+          find . -name "Podfile" -execdir pod install \;
+
+      - name: 配置 Xcode 签名
+        script: |
+          xcode-project use-profiles
+
+      - name: 构建 IPA（使用时间戳作为 build 号）
+        script: |
+          flutter build ipa --release \
+            --build-name=1.0.0 \
+            --build-number=$(date +%Y%m%d%H%M) \
+            --export-options-plist=/Users/builder/export_options.plist \
+            -t "$ENTRY_POINT"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com   # 改为你的邮箱
+        notify:
+          success: true
+          failure: true
+      scripts:
+        - name: IPA 构建完成
+          script: |
+            echo "IPA 已生成，见 artifacts"
+
+  # 完整流程：需要 App Store Connect 集成名为 "codemagic"
   ios-release:
     name: iOS Release（无 Mac 云构建）
     working_directory: mobile
