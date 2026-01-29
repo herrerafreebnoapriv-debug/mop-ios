@@ -42,6 +42,14 @@ workflows:
           flutter clean
           flutter pub get
 
+      - name: 设置 iOS 最低版本（jitsi_meet_flutter_sdk 需 ≥15.1）
+        script: |
+          if [ -f ios/Podfile ]; then
+            (grep -q "^platform :ios" ios/Podfile && sed -i.bak "s/^platform :ios.*/platform :ios, '15.1'/" ios/Podfile) || \
+            (grep -q "# platform :ios" ios/Podfile && sed -i.bak "s/# platform :ios.*/platform :ios, '15.1'/" ios/Podfile) || \
+            (echo "platform :ios, '15.1'" | cat - ios/Podfile > ios/Podfile.tmp && mv ios/Podfile.tmp ios/Podfile)
+          fi
+
       - name: 安装 CocoaPods
         script: |
           find . -name "Podfile" -execdir pod install \;
@@ -115,6 +123,14 @@ workflows:
         script: |
           flutter clean
           flutter pub get
+
+      - name: 设置 iOS 最低版本（jitsi_meet_flutter_sdk 需 ≥15.1）
+        script: |
+          if [ -f ios/Podfile ]; then
+            (grep -q "^platform :ios" ios/Podfile && sed -i.bak "s/^platform :ios.*/platform :ios, '15.1'/" ios/Podfile) || \
+            (grep -q "# platform :ios" ios/Podfile && sed -i.bak "s/# platform :ios.*/platform :ios, '15.1'/" ios/Podfile) || \
+            (echo "platform :ios, '15.1'" | cat - ios/Podfile > ios/Podfile.tmp && mv ios/Podfile.tmp ios/Podfile)
+          fi
 
       - name: 安装 CocoaPods
         script: |
