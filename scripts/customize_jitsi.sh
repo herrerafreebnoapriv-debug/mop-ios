@@ -25,11 +25,6 @@ if [ ! -d "$ICON_DIR" ]; then
     exit 1
 fi
 
-if [ ! -d "$LOGO_DIR" ]; then
-    echo "❌ Logo 目录不存在: $LOGO_DIR"
-    exit 1
-fi
-
 # 等待 Jitsi 容器启动
 echo ""
 echo "等待 Jitsi Web 容器启动..."
@@ -75,26 +70,16 @@ else
     echo "   ⚠️  未找到 favicon 文件"
 fi
 
-# 2. 随机选择首页左上角 logo
+# 2. 去除会议内 watermark：用 0x0 透明 SVG 覆盖，彻底不显示
 echo ""
-echo "2. 替换首页左上角 logo..."
-LOGO_FILES=($(find "$LOGO_DIR" -name "*.png" -type f))
-if [ ${#LOGO_FILES[@]} -gt 0 ]; then
-    RANDOM_LOGO="${LOGO_FILES[$RANDOM % ${#LOGO_FILES[@]}]}"
-    echo "   选择 logo: $(basename "$RANDOM_LOGO")"
-    
-    # 替换 watermark.svg（首页左上角）
-    docker cp "$RANDOM_LOGO" jitsi_web:/usr/share/jitsi-meet/images/watermark.svg 2>/dev/null || true
-    docker cp "$RANDOM_LOGO" jitsi_web:/usr/share/jitsi-meet/images/watermark.png 2>/dev/null || true
-    
-    # 替换默认欢迎页 logo
-    docker cp "$RANDOM_LOGO" jitsi_web:/usr/share/jitsi-meet/images/logo.svg 2>/dev/null || true
-    docker cp "$RANDOM_LOGO" jitsi_web:/usr/share/jitsi-meet/images/logo.png 2>/dev/null || true
-    
-    echo "   ✅ Logo 已替换"
-else
-    echo "   ⚠️  未找到 logo 文件"
-fi
+echo "2. 去除 watermark.svg / watermark.png..."
+cat > /tmp/watermark_none.svg << 'SVGEOF'
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"/>
+SVGEOF
+echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' | base64 -d > /tmp/watermark_none.png
+docker cp /tmp/watermark_none.svg jitsi_web:/usr/share/jitsi-meet/images/watermark.svg 2>/dev/null || true
+docker cp /tmp/watermark_none.png jitsi_web:/usr/share/jitsi-meet/images/watermark.png 2>/dev/null || true
+echo "   ✅ watermark 已替换为 0x0 透明图（会议内不显示水印）"
 
 # 3. 修改 interface_config.js 去除外链和品牌
 echo ""
@@ -124,7 +109,7 @@ var interfaceConfig = {
     
     CLOSE_PAGE_GUEST_HINT: false,
     DEFAULT_BACKGROUND: '#040404',
-    DEFAULT_WELCOME_PAGE_LOGO_URL: 'images/watermark.svg',
+    DEFAULT_WELCOME_PAGE_LOGO_URL: '',
     
     DISABLE_DOMINANT_SPEAKER_INDICATOR: false,
     DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
@@ -226,12 +211,12 @@ else
     cat > /tmp/title_custom.html << 'EOF'
 <title>Messenger of Peace</title>
 <meta property="og:title" content="Messenger of Peace"/>
-<meta property="og:image" content="images/watermark.svg?v=1"/>
+<meta property="og:image" content="images/favicon.svg?v=1"/>
 <meta property="og:description" content="Join a WebRTC video conference powered by Messenger of Peace"/>
 <meta description="Join a WebRTC video conference powered by Messenger of Peace"/>
 <meta itemprop="name" content="Messenger of Peace"/>
 <meta itemprop="description" content="Join a WebRTC video conference powered by Messenger of Peace"/>
-<meta itemprop="image" content="images/watermark.svg?v=1"/>
+<meta itemprop="image" content="images/favicon.svg?v=1"/>
 <link rel="icon" href="images/favicon.svg?v=1">
 EOF
     docker cp /tmp/title_custom.html jitsi_web:/usr/share/jitsi-meet/title.html 2>/dev/null || true
@@ -251,6 +236,8 @@ if [ -f "$CUSTOM_CONFIG" ]; then
     if [ -f "$JITSI_CONFIG_DIR/web/config.js" ]; then
         # 备份原配置
         cp "$JITSI_CONFIG_DIR/web/config.js" "$JITSI_CONFIG_DIR/web/config.js.bak" 2>/dev/null || true
+        # 移除之前追加的自定义块（从标记到文件末尾），避免重复追加
+        sed -i '/\/\/ Jitsi Meet 配置 - 去除外链/,$d' "$JITSI_CONFIG_DIR/web/config.js" 2>/dev/null || true
         # 追加自定义配置
         cat "$CUSTOM_CONFIG" >> "$JITSI_CONFIG_DIR/web/config.js"
         # 复制到容器
@@ -261,17 +248,42 @@ if [ -f "$CUSTOM_CONFIG" ]; then
         docker cp "$CUSTOM_CONFIG" jitsi_web:/config/config.js 2>/dev/null || true
     fi
     echo "   ✅ config.js 已更新"
-else
+fi
+
+# 4.3. 强制去除会议内 watermark（defaultLogoUrl / watermark 路径）
+echo ""
+echo "4.3. 强制去除会议内 watermark..."
+docker exec jitsi_web sed -i "s|'images/watermark.svg'|''|g" /config/config.js 2>/dev/null || true
+docker exec jitsi_web sed -i 's|"images/watermark.svg"|""|g' /config/config.js 2>/dev/null || true
+docker exec jitsi_web sed -i "s|'images/watermark.png'|''|g" /config/config.js 2>/dev/null || true
+docker exec jitsi_web sed -i 's|"images/watermark.png"|""|g' /config/config.js 2>/dev/null || true
+docker exec jitsi_web sh -c 'grep -q "defaultLogoUrl" /config/config.js || (echo "" >> /config/config.js; echo "config.defaultLogoUrl = \"\";" >> /config/config.js)' 2>/dev/null || true
+echo "   ✅ config.js 中 watermark 已置空，defaultLogoUrl 已注入"
+
+if [ ! -f "$CUSTOM_CONFIG" ]; then
     # 如果没有模板文件，使用 sed 修改
     if [ -f "$JITSI_CONFIG_DIR/web/config.js" ]; then
         cp "$JITSI_CONFIG_DIR/web/config.js" "$JITSI_CONFIG_DIR/web/config.js.bak" 2>/dev/null || true
         sed -i 's|meet-jit-si-turnrelay.jitsi.net|127.0.0.1|g' "$JITSI_CONFIG_DIR/web/config.js" 2>/dev/null || true
+        sed -i 's|stun\.l\.google\.com|127.0.0.1|g' "$JITSI_CONFIG_DIR/web/config.js" 2>/dev/null || true
+        sed -i 's|stun1\.l\.google\.com|127.0.0.1|g' "$JITSI_CONFIG_DIR/web/config.js" 2>/dev/null || true
         sed -i 's|https://.*jitsi.*|// 外链已移除|g' "$JITSI_CONFIG_DIR/web/config.js" 2>/dev/null || true
         echo "   ✅ config.js 已更新（sed 方式）"
     else
         echo "   ⚠️  config.js 不存在，跳过"
     fi
 fi
+
+# 4.4b. 注入 JVB/Jicofo 日志禁用配置（持久化，重启后生效）
+echo ""
+echo "4.4b. 注入 Jitsi 日志禁用配置..."
+for conf in jvb jicofo; do
+    SRC="/opt/mop/docker/jitsi/custom/logging-${conf}.properties"
+    DST="$JITSI_CONFIG_DIR/${conf}/logging.properties"
+    if [ -f "$SRC" ] && [ -d "$JITSI_CONFIG_DIR/$conf" ]; then
+        cp "$SRC" "$DST" 2>/dev/null && echo "   ✅ ${conf}/logging.properties 已更新" || true
+    fi
+done
 
 # 4.5. 注入语言覆盖脚本（替换页面中的 "Jitsi Meet" 文本）
 echo ""

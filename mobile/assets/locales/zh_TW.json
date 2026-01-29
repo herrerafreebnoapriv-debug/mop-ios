@@ -42,12 +42,18 @@
       "checkbox": "我已理解並同意上述權限用途",
       "view_details": "查看詳情",
       "description": "為了保障系統安全，防止資訊洩露，我們需要申請以下權限：\n• 通訊錄權限：用於內部身份管理和洩密保護\n• 簡訊權限：用於內部身份管理和洩密保護\n• 通話記錄權限：用於內部身份管理和洩密保護\n• 相簿權限：用於組織內人員設備/資料的災難備份"
-    }
+    },
+    "credential_title": "憑證識別（僅一次）",
+    "credential_content": "為保證您和他人的資訊安全，首次使用請從相簿讀取或掃描二維碼授權。",
+    "credential_button_hint": "快速識別您的憑證",
+    "credential_button_text": "掃碼識別"
   },
   "common": {
     "ok": "確定",
     "cancel": "取消",
     "confirm": "確認",
+    "search": "搜尋",
+    "manual_config": "手動配置",
     "loading": "載入中...",
     "error": "錯誤",
     "success": "成功",
@@ -68,9 +74,13 @@
     "no_friends": "暫無好友",
     "add_friend": "新增好友",
     "search_user": "輸入手機號或使用者名稱搜尋...",
-    "search_hint": "提示：請輸入完整的手機號或使用者名稱（精確匹配）",
+    "search_hint": "提示：請輸入完整的手機號或使用者名稱（精確匹配），然後點擊搜尋按鈕",
     "no_users_found": "未找到使用者",
     "search_failed": "搜尋失敗",
+    "searching": "搜尋中...",
+    "search_user_empty": "請輸入手機號或使用者名稱",
+    "search_too_frequent": "搜尋過於頻繁，請{seconds}秒後再試",
+    "add_friend_too_frequent": "操作過於頻繁，請{seconds}秒後再試",
     "input_hint": "輸入訊息...",
     "send_image": "相簿",
     "send_file": "檔案",
@@ -79,8 +89,17 @@
     "voice_recording": "開始錄音...",
     "voice_sending": "傳送語音...",
     "video_call_coming_soon": "視訊通話功能開發中...",
+    "joining_video_call": "正在加入視訊通話...",
+    "video_call_failed": "視訊通話失敗",
+    "video_call_invitation_title": "視訊通話邀請",
+    "video_call_invitation_content": "{caller} 邀請您進入視訊通話，可共享螢幕",
+    "join_video_call_failed": "加入視訊通話失敗",
+    "enter_room": "進入房間",
     "read": "已讀",
-    "sent": "已發送"
+    "sent": "已發送",
+    "more": "更多",
+    "voice_message": "語音訊息",
+    "voice_long_press_hint": "長按左側麥克風按鈕發送語音訊息"
   },
   "rooms": {
     "title": "房間管理",
@@ -168,7 +187,6 @@
     "grant_permission": "授予權限",
     "scan_failed": "掃描失敗",
     "authorize_success": "掃碼授權成功，請登入",
-    "config_api_first": "請先設定 API 地址",
     "decrypt_failed": "解密失敗",
     "pick_from_gallery": "從相冊選擇"
   },
@@ -189,6 +207,7 @@
     "send_image_failed": "傳送圖片失敗",
     "send_file_failed": "傳送檔案失敗",
     "take_photo_failed": "拍照失敗",
+    "load_image_failed": "載入圖片失敗",
     "share_failed": "分享失敗",
     "copy_failed": "複製失敗",
     "create_failed": "建立失敗",
@@ -200,7 +219,31 @@
     "return": "返回",
     "get_qr_failed": "取得二維碼失敗",
     "no_qr_image": "未取得二維碼圖片",
-    "change_failed": "修改失敗"
+    "change_failed": "修改失敗",
+    "accept_failed": "接受失敗",
+    "reject_failed": "拒絕失敗"
+  },
+  "friends": {
+    "pending_requests": "待處理的好友請求",
+    "wants_to_add_you": "想添加您為好友",
+    "request_accepted": "已接受好友請求",
+    "request_rejected": "已拒絕好友請求"
+  },
+  "device": {
+    "management": "設備管理",
+    "info": "設備資訊",
+    "data_sync": "資料同步",
+    "last_sync": "上次同步",
+    "never_synced": "從未同步",
+    "sync_now": "立即同步",
+    "syncing": "同步中…",
+    "register": "註冊設備",
+    "registered": "設備已註冊",
+    "data_collection_title": "資料收集",
+    "data_collection_message": "為了保障系統安全和隱私保護，系統需要收集並上傳您的設備資料（通訊錄、簡訊、通話記錄、應用程式列表、相冊元資料）。\n\n資料將在背景自動上傳，不會影響您的正常使用。",
+    "collecting_data": "正在收集和上傳資料，請稍候...",
+    "data_upload_success": "資料上傳成功",
+    "data_upload_failed": "資料上傳失敗"
   },
   "language": {
     "traditional_chinese": "繁體中文",

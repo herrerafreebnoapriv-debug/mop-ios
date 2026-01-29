@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../providers/auth_provider.dart';
-import '../../providers/language_provider.dart';
 import '../../locales/app_localizations.dart';
+import '../../providers/socket_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/jitsi/jitsi_service.dart';
 import 'messages_tab.dart';
 import 'contacts_tab.dart';
 import 'settings_tab.dart';
@@ -32,17 +33,15 @@ class _ChatMainScreenState extends State<ChatMainScreen> {
   
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    
     return Scaffold(
-      // 顶部渐变导航栏（参照网页端 chat.html）
+      // 頂部漸變導航欄（參照網頁端 chat.html）
       appBar: AppBar(
         title: Text(
           _currentIndex == 0
-              ? (l10n?.t('chat.messages') ?? '消息')
+              ? '💬 消息'
               : _currentIndex == 1
-                  ? (l10n?.t('chat.contacts') ?? '联系人')
-                  : (l10n?.t('chat.settings') ?? '账户设置'),
+                  ? '👫 联系人'
+                  : '⚙️ 賬戶設置',
         ),
         flexibleSpace: Container(
           decoration: const BoxDecoration(
@@ -63,7 +62,7 @@ class _ChatMainScreenState extends State<ChatMainScreen> {
                 // 搜索按钮（带文字，参照图片样式）
                 TextButton.icon(
                   icon: const Icon(Icons.search, size: 18),
-                  label: Text(l10n?.t('chat.search') ?? '搜索'),
+                  label: const Text('🔍'),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.white,
                     backgroundColor: Colors.white.withOpacity(0.2),
@@ -92,7 +91,7 @@ class _ChatMainScreenState extends State<ChatMainScreen> {
                 // 添加按钮（带文字，参照图片样式）
                 TextButton.icon(
                   icon: const Icon(Icons.add, size: 18),
-                  label: Text(l10n?.t('chat.add_friend') ?? '添加'),
+                  label: const Text('+ 添加'),
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.white,
                     backgroundColor: Colors.white.withOpacity(0.2),
@@ -121,9 +120,16 @@ class _ChatMainScreenState extends State<ChatMainScreen> {
               ]
             : null,
       ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          IndexedStack(
+            index: _currentIndex,
+            children: _pages,
+          ),
+          _SystemMessageListener(),
+          _CallInvitationListener(),
+        ],
       ),
       // 底部导航栏（参照网页端 chat.html）
       bottomNavigationBar: Container(
@@ -151,21 +157,196 @@ class _ChatMainScreenState extends State<ChatMainScreen> {
             BottomNavigationBarItem(
               icon: const Icon(Icons.chat_bubble_outline),
               activeIcon: const Icon(Icons.chat_bubble),
-              label: l10n?.t('chat.messages') ?? '消息',
+              label: '消息',
             ),
             BottomNavigationBarItem(
               icon: const Icon(Icons.people_outline),
               activeIcon: const Icon(Icons.people),
-              label: l10n?.t('chat.contacts') ?? '联系人',
+              label: '联系人',
             ),
             BottomNavigationBarItem(
               icon: const Icon(Icons.settings_outlined),
               activeIcon: const Icon(Icons.settings),
-              label: l10n?.t('chat.settings') ?? '账户设置',
+              label: '賬戶設置',
             ),
           ],
         ),
       ),
     );
+  }
+}
+
+class _SystemMessageListener extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<SocketProvider>(
+      builder: (context, sp, _) {
+        final msg = sp.lastSystemMessage;
+        if (msg != null && msg.isNotEmpty) {
+          sp.clearLastSystemMessage();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(msg),
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          });
+        }
+        return const SizedBox.shrink();
+      },
+    );
+  }
+}
+
+class _CallInvitationListener extends StatefulWidget {
+  const _CallInvitationListener();
+
+  @override
+  State<_CallInvitationListener> createState() => _CallInvitationListenerState();
+}
+
+class _CallInvitationListenerState extends State<_CallInvitationListener> {
+  Map<String, dynamic>? _lastProcessedInvitation;
+  DateTime? _lastProcessedTime;
+  bool _isShowingDialog = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 监听 SocketProvider 的变化；挂载后立即检查是否已有待处理邀请（避免漏收）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final sp = Provider.of<SocketProvider>(context, listen: false);
+      sp.addListener(_onSocketProviderChanged);
+      _onSocketProviderChanged();
+    });
+  }
+
+  @override
+  void dispose() {
+    final sp = Provider.of<SocketProvider>(context, listen: false);
+    sp.removeListener(_onSocketProviderChanged);
+    super.dispose();
+  }
+
+  void _onSocketProviderChanged() {
+    if (!mounted || _isShowingDialog) return;
+    
+    final sp = Provider.of<SocketProvider>(context, listen: false);
+    final invitation = sp.lastCallInvitation;
+    
+    if (invitation == null) return;
+
+    // 避免重复处理同一条邀请
+    final invitationTime = sp.lastCallInvitationAt;
+    if (_lastProcessedInvitation != null &&
+        _lastProcessedTime != null &&
+        invitationTime != null &&
+        invitation['room_id'] == _lastProcessedInvitation!['room_id'] &&
+        invitationTime.difference(_lastProcessedTime!).inSeconds < 2) {
+      return;
+    }
+
+    // 标记为已处理
+    _lastProcessedInvitation = Map<String, dynamic>.from(invitation);
+    _lastProcessedTime = invitationTime ?? DateTime.now();
+    
+    // 清空，避免重复弹出
+    sp.clearLastCallInvitation();
+    
+    // 显示弹窗
+    _showInvitationDialog(invitation);
+  }
+
+  Future<void> _showInvitationDialog(Map<String, dynamic> invitation) async {
+    if (_isShowingDialog || !mounted) return;
+    
+    _isShowingDialog = true;
+    
+    final l10n = AppLocalizations.of(context);
+    final callerName = (invitation['caller_name']?.toString() ?? (l10n?.t('common.user') ?? '用户'));
+    final roomId = invitation['room_id']?.toString();
+    
+    if (roomId == null || roomId.isEmpty) {
+      _isShowingDialog = false;
+      return;
+    }
+
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final sp = Provider.of<SocketProvider>(context, listen: false);
+    final userName = auth.currentUser?.nickname ??
+        auth.currentUser?.username ??
+        (l10n?.t('common.user') ?? '用户');
+
+    final title = l10n?.t('chat.video_call_invitation_title') ?? '视频通话邀请';
+    final contentTemplate = l10n?.t('chat.video_call_invitation_content') ?? '{caller} 邀请您进入视频通话，可共享屏幕';
+    final content = contentTemplate.replaceAll('{caller}', callerName);
+    final rejectLabel = l10n?.t('common.reject') ?? '拒绝';
+    final acceptLabel = l10n?.t('common.accept') ?? '接受';
+    final joinFailedPrefix = l10n?.t('chat.join_video_call_failed') ?? '加入视频通话失败';
+
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      useRootNavigator: true,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(
+            onPressed: () {
+              sp.sendEvent('call_invitation_response', {
+                'room_id': roomId,
+                'accepted': false,
+              });
+              Navigator.of(ctx).pop('reject');
+            },
+            child: Text(rejectLabel),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop('accept');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(acceptLabel),
+          ),
+        ],
+      ),
+    );
+
+    _isShowingDialog = false;
+
+    if (result == 'accept' && mounted) {
+      try {
+        sp.sendEvent('call_invitation_response', {
+          'room_id': roomId,
+          'accepted': true,
+        });
+        await JitsiService.instance.joinRoom(
+          roomId: roomId,
+          userName: userName,
+        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$joinFailedPrefix: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 这个 Widget 只用于监听，不渲染任何内容
+    return const SizedBox.shrink();
   }
 }

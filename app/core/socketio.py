@@ -16,11 +16,16 @@ from app.db.models import User
 
 # 创建 Socket.io 服务器实例
 # 注意：对于 FastAPI，应该使用 'asgi' 模式
+# 统一使用 Engine.IO 心跳，不再维护应用层 ping/pong 与超时任务
+# 缩短离线判定：约 20+40=60s 内无 pong 即断开并触发 disconnect，在线状态及时更新
 sio = socketio.AsyncServer(
     async_mode='asgi',
     cors_allowed_origins=settings.SOCKETIO_CORS_ORIGINS.split(",") if settings.SOCKETIO_CORS_ORIGINS else "*",
     logger=True,
-    engineio_logger=True
+    engineio_logger=True,
+    ping_interval=20,  # 每 20 秒发 ping
+    ping_timeout=40,   # 40 秒内未收到 pong 则断开（离线判定约 60s）
+    max_http_buffer_size=1e8  # 100MB，支持大文件传输
 )
 
 # 创建 Socket.io 应用
@@ -30,11 +35,7 @@ socketio_app = socketio.ASGIApp(sio)
 # 存储格式：{user_id: {socket_id: session_info}}
 connected_users: Dict[int, Dict[str, Dict]] = {}
 
-# 心跳超时时间（秒）
-HEARTBEAT_TIMEOUT = 60
-
-# 心跳间隔（秒）
-HEARTBEAT_INTERVAL = 30
+# 离线判定已统一由 Engine.IO 的 ping_interval/ping_timeout 负责，不再使用应用层超时任务
 
 
 # ==================== 连接事件处理 ====================
@@ -165,63 +166,8 @@ async def disconnect(sid):
         logger.error(f"断开连接处理错误：{e}", exc_info=True)
 
 
-# ==================== 心跳监测 ====================
-
-@sio.event
-async def ping(sid, data):
-    """
-    心跳检测（客户端发送 ping）
-    
-    Args:
-        sid: Socket ID
-        data: 心跳数据（可选）
-    """
-    try:
-        # 更新最后心跳时间
-        for uid, sockets in connected_users.items():
-            if sid in sockets:
-                sockets[sid]['last_heartbeat'] = datetime.now(timezone.utc)
-                # 回复 pong
-                await sio.emit('pong', {
-                    'timestamp': datetime.now(timezone.utc).isoformat()
-                }, room=sid)
-                return
-        
-        logger.warning(f"未找到 Socket {sid} 的心跳记录")
-        
-    except Exception as e:
-        logger.error(f"心跳处理错误：{e}", exc_info=True)
-
-
-async def check_heartbeat_timeout():
-    """
-    检查心跳超时
-    定期检查所有连接的心跳时间，超时的连接将被断开
-    """
-    while True:
-        try:
-            current_time = datetime.now(timezone.utc)
-            timeout_users = []
-            
-            for user_id, sockets in list(connected_users.items()):
-                for sid, session_info in list(sockets.items()):
-                    last_heartbeat = session_info.get('last_heartbeat')
-                    if last_heartbeat:
-                        elapsed = (current_time - last_heartbeat).total_seconds()
-                        if elapsed > HEARTBEAT_TIMEOUT:
-                            logger.warning(f"用户 {user_id} (Socket {sid}) 心跳超时，断开连接")
-                            timeout_users.append((user_id, sid))
-            
-            # 断开超时的连接
-            for user_id, sid in timeout_users:
-                await sio.disconnect(sid)
-            
-            # 每 30 秒检查一次
-            await asyncio.sleep(30)
-            
-        except Exception as e:
-            logger.error(f"心跳检查错误：{e}", exc_info=True)
-            await asyncio.sleep(30)
+# 心跳由 Engine.IO 的 ping_interval/ping_timeout 统一处理，断开时触发 disconnect 并更新在线状态
+# 不再使用应用层 ping/pong 事件与超时检查任务，避免双重心跳逻辑不一致
 
 
 # ==================== 在线状态管理 ====================
@@ -307,20 +253,70 @@ async def send_message(sid, data):
         target_user_id = data.get('target_user_id')
         room_id = data.get('room_id')
         message = data.get('message')
-        msg_type = data.get('type', 'text')
+        # 优先使用 message_type，其次使用 type，最后默认为 text
+        msg_type = data.get('message_type') or data.get('type', 'text')
+        is_original = data.get('is_original', False)  # 标记是否为需要转储的文件（图片/语音/文件）
+        file_name = (data.get('file_name') or '').strip()
+        file_size = data.get('file_size', 0)
+        file_url = (data.get('file_url') or '').strip()
+        duration = data.get('duration')  # 语音/视频时长（秒）
+        
+        # 语音消息兜底：file_name 为 voice.webm 且为文件消息时，强制设为 audio
+        if file_name == 'voice.webm' and msg_type not in ('audio', 'voice'):
+            msg_type = 'audio'
         
         # 必须指定 target_user_id（点对点）或 room_id（群聊）之一
-        if not message:
-            await sio.emit('error', {
-                'message': '缺少消息内容'
-            }, room=sid)
-            return
-        
         if not target_user_id and not room_id:
             await sio.emit('error', {
                 'message': '必须指定 target_user_id（点对点）或 room_id（群聊）'
             }, room=sid)
             return
+        
+        # 消息内容校验：文本/图片需有 message；文件/音频/视频可仅有 file_url（HTTP 上传成功时 message 为空）
+        has_message = message is not None and (not isinstance(message, str) or message.strip())
+        has_file_url = file_url and str(file_url).strip() and msg_type in ('file', 'audio', 'video')
+        if not has_message and not has_file_url:
+            await sio.emit('error', {
+                'message': '缺少消息内容'
+            }, room=sid)
+            return
+        if message is None:
+            message = ''
+
+        # 检查是否需要转储大文件
+        message_content = message
+        file_info = None
+        should_dump = False
+        is_large_file = False
+        
+        if isinstance(message, str) and message.startswith('data:'):
+            message_size = len(message)
+            # 超过阈值，必须转储
+            from app.core.file_dump import MESSAGE_SIZE_THRESHOLD, dump_large_file_to_storage
+            if message_size > MESSAGE_SIZE_THRESHOLD:
+                should_dump = True
+                is_large_file = True
+                logger.info(f"检测到大文件消息，大小: {message_size} 字节，开始转储...")
+            # 标记为需要转储的文件（HTTP上传失败），主动转储以节省网络开销
+            elif is_original:
+                should_dump = True
+                logger.info(f"检测到需要转储的文件消息（HTTP上传失败），类型: {msg_type}, 大小: {message_size} 字节，主动转储以节省网络开销...")
+        
+        if should_dump:
+            # 转储文件到服务器存储
+            file_info = await dump_large_file_to_storage(message, sender_id, msg_type, file_name)
+            
+            if file_info:
+                # 对于图片：保留原始 base64 数据作为缩略图
+                # 对于语音/文件：清空 message，只保留 file_url
+                if msg_type == 'image':
+                    message_content = message  # 保留原始 base64 数据作为缩略图
+                    logger.info(f"图片已转储，保留 base64 作为缩略图，file_url: {file_info.get('file_url')}")
+                else:
+                    message_content = ''  # 语音/文件不保留 base64，只使用 file_url
+                    logger.info(f"{msg_type}文件已转储，file_url: {file_info.get('file_url')}")
+            else:
+                logger.warning("文件转储失败，将尝试发送原始数据（可能超过 Socket.io 限制）")
         
         # 保存消息到数据库
         from app.db.session import get_db
@@ -330,15 +326,33 @@ async def send_message(sid, data):
         db_message = None
         async for session in get_db():
             try:
-                # 创建消息记录
+                # 创建消息记录（使用处理后的消息内容）
                 db_message = Message(
                     sender_id=sender_id,
                     receiver_id=target_user_id if target_user_id else None,
                     room_id=room_id if room_id else None,
-                    message=message,
+                    message=message_content,  # 使用处理后的内容（可能是 file_url）
                     message_type=msg_type,
                     is_read=False
                 )
+                
+                # 如果转储成功，添加文件信息
+                if file_info:
+                    db_message.file_id = file_info.get('file_id')
+                    db_message.file_url = file_info.get('file_url', '')
+                    db_message.file_name = file_info.get('file_name', file_name) or file_name
+                    db_message.file_size = file_info.get('file_size', file_size) or file_size
+                # 如果客户端已经通过 HTTP 上传了文件（提供了 file_url），使用客户端的 file_url
+                elif file_url and file_url.strip():
+                    db_message.file_url = file_url
+                    db_message.file_name = file_name or ('voice.webm' if msg_type == 'audio' else 'image')
+                    db_message.file_size = file_size or 0
+                    logger.info(f"使用客户端提供的 file_url: {file_url}, file_name: {file_name}, file_size: {file_size}")
+                if duration is not None:
+                    try:
+                        db_message.duration = int(duration)
+                    except (TypeError, ValueError):
+                        pass
                 session.add(db_message)
                 await session.commit()
                 await session.refresh(db_message)
@@ -357,12 +371,36 @@ async def send_message(sid, data):
                 'from_user_id': sender_id,  # 兼容字段
                 'sender_id': sender_id,  # 统一字段名
                 'receiver_id': target_user_id,  # 接收者ID
-                'message': message,
+                'message': message_content,  # 使用处理后的内容
                 'type': msg_type,
                 'message_type': msg_type,  # 兼容字段
                 'timestamp': datetime.now(timezone.utc).isoformat(),
                 'created_at': datetime.now(timezone.utc).isoformat()  # 兼容字段
             }
+            
+            # 如果转储成功，添加文件信息
+            if file_info:
+                message_data['file_id'] = file_info.get('file_id')
+                message_data['file_url'] = file_info.get('file_url', '')
+                message_data['file_name'] = file_info.get('file_name', file_name) or file_name
+                message_data['file_size'] = file_info.get('file_size', file_size) or file_size
+                message_data['is_original'] = is_original  # 标记是否为需要转储的文件（用于前端更新）
+                if file_info.get('mime_type'):
+                    message_data['mime_type'] = file_info.get('mime_type')
+                
+                # 保留原始 base64 作为缩略图（message_content 已经是原始 base64）
+                message_data['message'] = message_content  # 缩略图 base64
+            # 如果客户端已经通过 HTTP 上传了文件（提供了 file_url），添加文件信息
+            elif file_url and file_url.strip():
+                message_data['file_url'] = file_url
+                message_data['file_name'] = file_name or ('image' if msg_type == 'image' else ('voice.webm' if msg_type == 'audio' else 'file'))
+                message_data['file_size'] = file_size or 0
+                logger.info(f"返回消息时添加 file_url: {file_url}, file_name: {file_name}, file_size: {file_size}")
+            if duration is not None:
+                try:
+                    message_data['duration'] = int(duration)
+                except (TypeError, ValueError):
+                    pass
             
             # 发送给接收者
             await sio.emit('message', message_data, room=f"user_{target_user_id}")
@@ -385,18 +423,44 @@ async def send_message(sid, data):
                     participants = result.scalars().all()
                     
                     # 发送给所有参与者（包括发送者自己）
+                    room_message_data = {
+                        'id': db_message.id if db_message else None,
+                        'from_user_id': sender_id,  # 兼容字段
+                        'sender_id': sender_id,  # 统一字段名
+                        'room_id': room_id,
+                        'message': message_content,  # 使用处理后的内容
+                        'type': msg_type,  # 兼容字段
+                        'message_type': msg_type,  # 统一字段名
+                        'timestamp': datetime.now(timezone.utc).isoformat(),
+                        'created_at': datetime.now(timezone.utc).isoformat()  # 兼容字段
+                    }
+                    
+                    # 如果转储成功，添加文件信息
+                    if file_info:
+                        room_message_data['file_id'] = file_info.get('file_id')
+                        room_message_data['file_url'] = file_info.get('file_url', '')
+                        room_message_data['file_name'] = file_info.get('file_name', file_name) or file_name
+                        room_message_data['file_size'] = file_info.get('file_size', file_size) or file_size
+                        room_message_data['is_original'] = is_original
+                        if file_info.get('mime_type'):
+                            room_message_data['mime_type'] = file_info.get('mime_type')
+                        
+                        # 保留原始 base64 作为缩略图（message_content 已经是原始 base64）
+                        room_message_data['message'] = message_content  # 缩略图 base64
+                    # 如果客户端已经通过 HTTP 上传了文件（提供了 file_url），添加文件信息
+                    elif file_url and file_url.strip():
+                        room_message_data['file_url'] = file_url
+                        room_message_data['file_name'] = file_name or ('image' if msg_type == 'image' else ('voice.webm' if msg_type == 'audio' else 'file'))
+                        room_message_data['file_size'] = file_size or 0
+                        logger.info(f"返回房间消息时添加 file_url: {file_url}, file_name: {file_name}, file_size: {file_size}")
+                    if duration is not None:
+                        try:
+                            room_message_data['duration'] = int(duration)
+                        except (TypeError, ValueError):
+                            pass
+                    
                     for participant in participants:
-                        await sio.emit('message', {
-                            'id': db_message.id if db_message else None,
-                            'from_user_id': sender_id,  # 兼容字段
-                            'sender_id': sender_id,  # 统一字段名
-                            'room_id': room_id,
-                            'message': message,
-                            'type': msg_type,  # 兼容字段
-                            'message_type': msg_type,  # 统一字段名
-                            'timestamp': datetime.now(timezone.utc).isoformat(),
-                            'created_at': datetime.now(timezone.utc).isoformat()  # 兼容字段
-                        }, room=f"user_{participant.user_id}")
+                        await sio.emit('message', room_message_data, room=f"user_{participant.user_id}")
                     break
                 except Exception as e:
                     logger.error(f"获取房间参与者失败: {e}", exc_info=True)
@@ -718,35 +782,28 @@ async def call_invitation(sid, data):
         
         logger.info(f"发送者ID: {sender_id}, 昵称: {sender_nickname}")
         
-        target_user_id = data.get('target_user_id')
+        raw_target = data.get('target_user_id')
         room_id = data.get('room_id')
         
-        if not target_user_id:
+        if raw_target is None:
             logger.error(f"缺少目标用户ID，发送者: {sender_id}")
-            await sio.emit('error', {
-                'message': '缺少目标用户ID'
-            }, room=sid)
+            await sio.emit('error', {'message': '缺少目标用户ID'}, room=sid)
+            return
+        try:
+            target_user_id = int(raw_target)
+        except (TypeError, ValueError):
+            logger.error(f"目标用户ID格式无效: {raw_target}，发送者: {sender_id}")
+            await sio.emit('error', {'message': '目标用户ID无效'}, room=sid)
             return
         
         if not room_id:
             logger.error(f"缺少房间ID，发送者: {sender_id}")
-            await sio.emit('error', {
-                'message': '缺少房间ID'
-            }, room=sid)
+            await sio.emit('error', {'message': '缺少房间ID'}, room=sid)
             return
         
-        logger.info(f"目标用户ID: {target_user_id}, 房间ID: {room_id}")
+        logger.info(f"目标用户ID: {target_user_id} (type={type(target_user_id).__name__}), 房间ID: {room_id}")
         logger.info(f"当前在线用户: {list(connected_users.keys())}")
         
-        # 验证目标用户是否在线
-        if target_user_id not in connected_users:
-            logger.warning(f"用户 {target_user_id} 不在线，无法发送通话邀请。当前在线用户: {list(connected_users.keys())}")
-            await sio.emit('error', {
-                'message': '对方不在线，无法发送通话邀请'
-            }, room=sid)
-            return
-        
-        # 发送通话邀请给目标用户
         invitation_data = {
             'room_id': room_id,
             'room_url': data.get('room_url'),
@@ -757,26 +814,136 @@ async def call_invitation(sid, data):
             'timestamp': datetime.now(timezone.utc).isoformat()
         }
         
-        logger.info(f"向用户 {target_user_id} 发送通话邀请，房间: user_{target_user_id}, 数据: {invitation_data}")
+        caller_name = invitation_data['caller_name']
+        # 折中方案：以聊天消息形式发到双方，文案明确「点击进入房间」按钮
+        system_message_text = f'📹 {caller_name} 邀请您进行视频通话，点击下方「进入房间」加入。'
+        created_msg_id: Optional[int] = None
+        created_msg_at: Optional[datetime] = None
         
-        # 检查目标用户的所有连接
+        # 始终创建系统消息并落库（对方离线时也能在聊天记录中看到邀请）
+        try:
+            from app.db.models import Message
+            from app.db.session import get_db
+            
+            async for session in get_db():
+                try:
+                    db_system_message = Message(
+                        sender_id=sender_id,
+                        receiver_id=target_user_id,
+                        message=system_message_text,
+                        message_type='system',
+                        is_read=False,
+                        created_at=datetime.now(timezone.utc),
+                        extra_data={'call_invitation': invitation_data},
+                    )
+                    session.add(db_system_message)
+                    await session.commit()
+                    await session.refresh(db_system_message)
+                    created_msg_id = db_system_message.id
+                    created_msg_at = db_system_message.created_at
+                    logger.info(f"✓ 已创建通话邀请系统消息，ID={created_msg_id}，接收者={target_user_id}")
+                    break
+                except Exception as msg_error:
+                    await session.rollback()
+                    logger.error(f"创建系统消息失败: {msg_error}", exc_info=True)
+                    break
+        except Exception as e:
+            logger.warning(f"创建通话邀请系统消息失败: {e}")
+        
+        # 构建系统消息 payload，并推送给发起方（双方都能在聊天里看到这条记录）
+        system_message_data = None
+        if created_msg_id is not None and created_msg_at is not None:
+            system_message_data = {
+                'id': created_msg_id,
+                'sender_id': sender_id,
+                'sender_nickname': caller_name,
+                'receiver_id': target_user_id,
+                'message': system_message_text,
+                'message_type': 'system',
+                'is_read': False,
+                'created_at': created_msg_at.isoformat() if created_msg_at else datetime.now(timezone.utc).isoformat(),
+                'call_invitation': invitation_data,
+                'extra_data': {'call_invitation': invitation_data},
+            }
+            await sio.emit('message', system_message_data, room=f"user_{sender_id}")
+            logger.info(f"✓ 已通过 Socket 发送系统消息（通话邀请）给发起方 {sender_id}")
+        
+        # 对方不在线：已落库；仍发推送通知（对方上线/打开 App 时可收到）；通知发起方
+        if target_user_id not in connected_users:
+            logger.warning(f"用户 {target_user_id} 不在线，无法推送实时通话邀请。当前在线: {list(connected_users.keys())}")
+            await sio.emit('error', {
+                'message': '对方不在线，无法发送通话邀请；已写入聊天记录，对方上线后可查看'
+            }, room=sid)
+            confirm_data = {
+                'target_user_id': target_user_id,
+                'room_id': room_id,
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'offline': True,
+            }
+            if system_message_data is not None:
+                confirm_data['system_message'] = system_message_data
+            await sio.emit('call_invitation_sent', confirm_data, room=sid)
+            # 对方离线也发送 FCM/APNs，设备上线或打开 App 时可收到通话邀请通知
+            try:
+                from app.services.push_notification import send_video_call_push
+                from app.db.session import get_db
+                async for session in get_db():
+                    await send_video_call_push(
+                        target_user_id=target_user_id,
+                        caller_name=caller_name,
+                        room_id=room_id,
+                        invitation_data=invitation_data,
+                        db_session=session,
+                    )
+                    break
+            except Exception as push_error:
+                logger.debug(f"对方离线时推送通知发送失败: {push_error}")
+            return
+        
         target_sockets = connected_users.get(target_user_id, {})
-        logger.info(f"目标用户 {target_user_id} 的连接数: {len(target_sockets)}")
-        if target_sockets:
-            logger.info(f"目标用户 {target_user_id} 的 Socket IDs: {list(target_sockets.keys())}")
+        logger.info(f"向用户 {target_user_id} 发送通话邀请，房间: user_{target_user_id}，连接数: {len(target_sockets)}")
         
-        # 发送邀请给目标用户
-        await sio.emit('call_invitation', invitation_data, room=f"user_{target_user_id}")
+        # 在线：先发「带接受/拒绝」的聊天消息，再发弹窗事件；被叫端用 system_message 可写入聊天
+        if system_message_data is not None:
+            await sio.emit('message', system_message_data, room=f"user_{target_user_id}")
+            logger.info(f"✓ 已通过 Socket 发送系统消息（通话邀请）给用户 {target_user_id}")
+        # 被叫事件里附带同一条系统消息，便于未在聊天页时也能写入会话
+        callee_payload = dict(invitation_data)
+        if system_message_data is not None:
+            callee_payload['system_message'] = system_message_data
+        await sio.emit('call_invitation', callee_payload, room=f"user_{target_user_id}")
         
         logger.info(f"✓ 用户 {sender_id} 向用户 {target_user_id} 发送了通话邀请，房间ID: {room_id}")
         logger.info(f"✓ 邀请已通过房间 user_{target_user_id} 发送")
         
-        # 确认邀请已发送
+        # 发送 FCM/APNs 推送通知（用于后台唤醒）
+        # 当 App 在后台或手机黑屏时，Socket 连接会被系统杀掉，必须通过推送通知来唤醒
+        try:
+            from app.services.push_notification import send_video_call_push
+            from app.db.session import get_db
+            
+            # 获取数据库会话并发送推送
+            async for session in get_db():
+                await send_video_call_push(
+                    target_user_id=target_user_id,
+                    caller_name=caller_name,
+                    room_id=room_id,
+                    invitation_data=invitation_data,
+                    db_session=session,
+                )
+                break
+        except Exception as push_error:
+            # 推送失败不影响 Socket 流程
+            logger.debug(f"推送通知发送失败（不影响 Socket 流程）: {push_error}")
+        
+        # 确认邀请已发送（附带系统消息供主叫写入聊天记录）
         confirm_data = {
             'target_user_id': target_user_id,
             'room_id': room_id,
             'timestamp': datetime.now(timezone.utc).isoformat()
         }
+        if system_message_data is not None:
+            confirm_data['system_message'] = system_message_data
         logger.info(f"向发送者 {sender_id} 发送确认，Socket ID: {sid}, 数据: {confirm_data}")
         await sio.emit('call_invitation_sent', confirm_data, room=sid)
         
@@ -867,12 +1034,10 @@ def get_user_connections(user_id: int) -> int:
     return len(connected_users.get(user_id, {}))
 
 
-# ==================== 启动心跳监测任务 ====================
+# ==================== 心跳监测（已统一为 Engine.IO） ====================
 
 def start_heartbeat_monitor():
     """
-    启动心跳监测任务
-    应该在应用启动时调用
+    保留接口以兼容 main.py 调用；离线判定已由 Engine.IO ping_interval/ping_timeout 负责。
     """
-    asyncio.create_task(check_heartbeat_timeout())
-    logger.info("心跳监测任务已启动")
+    logger.info("Socket.io 使用 Engine.IO 统一心跳，离线判定约 60s")

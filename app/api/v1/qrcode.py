@@ -4,11 +4,12 @@
 根据 Spec.txt：使用 RSA 私钥对配置（API URL、房间ID、时间戳）进行签名加密
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 import io
 import base64
 import hashlib
+import json
 import os
 import random
 from pathlib import Path
@@ -21,14 +22,14 @@ from pydantic import BaseModel, Field
 from PIL import Image
 
 from app.core.i18n import i18n, get_language_from_request
-from app.core.security import rsa_encrypt, rsa_decrypt, create_jitsi_token
+from app.core.security import rsa_encrypt, rsa_decrypt, simple_encrypt, simple_decrypt, create_jitsi_token, create_access_token
 from app.core.config import settings
 from app.db.session import get_db
 from app.db.models import User, QRCodeScan, SystemConfig
 from app.api.v1.auth import get_current_user
 from loguru import logger
 import qrcode
-from qrcode.constants import ERROR_CORRECT_H, ERROR_CORRECT_M
+from qrcode.constants import ERROR_CORRECT_H, ERROR_CORRECT_M, ERROR_CORRECT_L
 
 router = APIRouter()
 
@@ -39,41 +40,42 @@ def get_random_chat_api_url() -> str:
     """
     随机选择一个聊天接口 API 地址（自动拼接路径）
     
-    从配置的域名列表中随机选择一个，并自动拼接 API 路径
-    如果域名不包含协议，自动添加 https://
+    从 CHAT_BASE_DOMAINS 列表中随机选择，并拼接 CHAT_API_PATH。
+    - 域名无协议时自动加 https://
+    - 路径保证以 / 开头，避免拼成 domain.comapi/v1
     
     Returns:
-        完整的 API URL，例如：https://log.chat5202ol.xyz/api/v1
+        完整 API URL，如 https://log.chat5202ol.xyz/api/v1
     """
     domains = settings.chat_base_domains_list
-    domain = random.choice(domains)
-    
-    # 确保域名格式正确（添加 https:// 如果缺失）
-    if not domain.startswith('http://') and not domain.startswith('https://'):
+    domain = (random.choice(domains) or "").strip()
+    if not domain:
+        return ""
+    if not domain.startswith("http://") and not domain.startswith("https://"):
         domain = f"https://{domain}"
-    
-    # 拼接 API 路径
-    return f"{domain.rstrip('/')}{settings.CHAT_API_PATH}"
+    domain = domain.rstrip("/")
+    path = (settings.CHAT_API_PATH or "/api/v1").strip()
+    if path and not path.startswith("/"):
+        path = "/" + path
+    return f"{domain}{path}"
 
 
 def get_random_chat_base_url() -> str:
     """
     随机选择一个聊天接口基础 URL（用于未加密二维码的房间链接）
     
-    从配置的域名列表中随机选择一个，返回基础 URL（不带路径）
-    如果域名不包含协议，自动添加 https://
+    从 CHAT_BASE_DOMAINS 列表随机选择，无协议时加 https://，返回不含路径的 base URL。
     
     Returns:
-        基础 URL，例如：https://log.chat5202ol.xyz
+        基础 URL，如 https://log.chat5202ol.xyz
     """
     domains = settings.chat_base_domains_list
-    domain = random.choice(domains)
-    
-    # 确保域名格式正确（添加 https:// 如果缺失）
-    if not domain.startswith('http://') and not domain.startswith('https://'):
+    domain = (random.choice(domains) or "").strip()
+    if not domain:
+        return ""
+    if not domain.startswith("http://") and not domain.startswith("https://"):
         domain = f"https://{domain}"
-    
-    return domain.rstrip('/')
+    return domain.rstrip("/")
 
 
 # ==================== 请求/响应模型 ====================
@@ -151,24 +153,27 @@ def get_random_icon_path() -> Optional[str]:
     return None
 
 
-def generate_qr_code_image(data: str, error_correction: int = ERROR_CORRECT_M) -> bytes:
+def generate_qr_code_image(data: str, error_correction: int = ERROR_CORRECT_M, box_size: int = 5, border: int = 2) -> bytes:
     """
-    生成二维码图片（降低尺寸和密集度，参考微信）
+    生成二维码图片（微信级别配置，优化识别率）
     
     Args:
         data: 要编码的数据
-        error_correction: 错误纠正级别（默认 Level M，中等容错率，降低密集度）
+        error_correction: 错误纠正级别（默认 Level M，15% 容错，平衡密集度与容错能力）
+        box_size: 每个模块的像素数（默认5，微信级别，降低密度）
+        border: 边框宽度（默认2，减小边框，提高识别率）
     
     Returns:
         二维码图片的字节数据（PNG 格式）
     """
-    # 使用更低的错误纠正级别和更小的尺寸（参考微信，降低一半）
-    # box_size从10降到5，border从4降到2，error_correction从H降到M
+    # 使用微信级别参数（box_size=5, border=2）降低密度，提高相册识别率
+    # Level M (15% 容错) - 平衡密集度与容错能力
+    # 图标覆盖比例控制在<3%，确保不影响扫描识别
     qr = qrcode.QRCode(
         version=None,  # 自动选择最小版本
-        error_correction=ERROR_CORRECT_M,  # Level M (15% 容错，降低密集度)
-        box_size=5,  # 降低尺寸（原来10，现在5，降低一半）
-        border=2,    # 降低边框（原来4，现在2，降低一半）
+        error_correction=error_correction,  # 使用传入的纠错级别
+        box_size=box_size,  # 使用传入的尺寸
+        border=border,      # 使用传入的边框
     )
     qr.add_data(data)
     qr.make(fit=True)  # 自动选择最小版本
@@ -188,12 +193,15 @@ def generate_qr_code_image(data: str, error_correction: int = ERROR_CORRECT_M) -
             # 计算二维码尺寸
             qr_width, qr_height = img.size
             
-            # 计算图标尺寸（约为二维码的1/4到1/3，确保明显可见）
-            # 增大图标尺寸以确保可见性
+            # 计算图标尺寸（约为二维码的1/8到1/9，降低覆盖比例以提高相册识别率）
+            # 图标不能太大，否则会覆盖二维码导致无法扫描
+            # 使用更小的比例（1/8或1/9），确保覆盖比例<3%，提高识别率
             if qr_width < 200:
-                icon_size = max(70, qr_width // 3)  # 小二维码使用1/3，最小70px
+                icon_size = max(20, qr_width // 9)  # 小二维码使用1/9，最小20px
+            elif qr_width < 300:
+                icon_size = max(30, qr_width // 9)  # 中等二维码使用1/9，最小30px
             else:
-                icon_size = max(90, min(qr_width // 3, qr_height // 3, 140))  # 大二维码使用1/3，最小90px，最大140px
+                icon_size = max(35, min(qr_width // 9, qr_height // 9, 50))  # 大二维码使用1/9，最小35px，最大50px
             
             icon = icon.resize((icon_size, icon_size), Image.Resampling.LANCZOS)
             
@@ -222,9 +230,9 @@ def generate_qr_code_image(data: str, error_correction: int = ERROR_CORRECT_M) -
             enhancer = ImageEnhance.Contrast(icon)
             icon = enhancer.enhance(1.5)  # 增强1.5倍对比度
             
-            # 将图标粘贴到二维码中心（使用更大的白色边框确保可见）
-            # 创建更大的白色区域作为边框，确保图标不会被二维码黑色模块遮挡
-            border_size = 10  # 增大边框从8到10，确保更明显
+            # 将图标粘贴到二维码中心（使用白色边框确保可见）
+            # 创建白色区域作为边框，确保图标不会被二维码黑色模块遮挡
+            border_size = 4  # 减小边框，确保不覆盖太多二维码区域
             icon_with_border_size = icon_size + border_size * 2
             
             # 创建白色边框，但添加一个浅灰色内边框以增强视觉效果
@@ -255,12 +263,21 @@ def generate_qr_code_image(data: str, error_correction: int = ERROR_CORRECT_M) -
             # 使用paste方法会直接覆盖该区域的像素，确保图标可见
             img.paste(icon_with_border, (icon_x_bordered, icon_y_bordered))
             
-            # 验证图标是否成功添加
+            # 验证图标是否成功添加，并记录详细信息用于调试
             center_x = icon_x_bordered + icon_with_border_size // 2
             center_y = icon_y_bordered + icon_with_border_size // 2
             if center_x < qr_width and center_y < qr_height:
                 center_pixel = img.getpixel((center_x, center_y))
-                logger.info(f"成功在二维码中心添加图标: {icon_path}, 图标尺寸: {icon_size}x{icon_size}, 边框尺寸: {icon_with_border_size}x{icon_with_border_size}, 位置: ({icon_x_bordered}, {icon_y_bordered}), 中心像素: {center_pixel}")
+                # 计算图标覆盖区域占二维码总面积的比例
+                coverage_ratio = (icon_with_border_size * icon_with_border_size) / (qr_width * qr_height) * 100
+                logger.info(f"成功在二维码中心添加图标: {icon_path}, "
+                           f"二维码尺寸: {qr_width}x{qr_height}, "
+                           f"图标尺寸: {icon_size}x{icon_size}, "
+                           f"边框尺寸: {icon_with_border_size}x{icon_with_border_size}, "
+                           f"覆盖比例: {coverage_ratio:.2f}%, "
+                           f"位置: ({icon_x_bordered}, {icon_y_bordered}), "
+                           f"数据长度: {len(data)}, "
+                           f"二维码版本: {qr.version}")
             else:
                 logger.warning(f"图标位置超出范围: center=({center_x}, {center_y}), qr_size=({qr_width}, {qr_height})")
         except Exception as e:
@@ -342,26 +359,19 @@ async def generate_qrcode(
     lang = current_user.language or get_language_from_request(request)
     
     try:
-        # 构建要加密的数据
-        timestamp = qr_data.timestamp or int(datetime.now(timezone.utc).timestamp())
-        expires_at = None
-        
-        if qr_data.expires_in:
-            expires_at = timestamp + qr_data.expires_in
-        
-        data = {
-            "api_url": qr_data.api_url,
-            "timestamp": timestamp,
-        }
-        
+        # 必须包含完整的 API URL，客户端不能内置任何默认URL
+        data = {"u": qr_data.api_url}
         if qr_data.room_id:
-            data["room_id"] = qr_data.room_id
+            data["r"] = qr_data.room_id
         
-        if expires_at:
-            data["expires_at"] = expires_at
+        # 使用简单的加密（Base64 + XOR 混淆），快速且不直接显示明文
+        from app.core.security import simple_encrypt
+        encrypted_data = simple_encrypt(data)
         
-        # RSA 加密签名
-        encrypted_data = rsa_encrypt(data)
+        expires_at = None
+        if qr_data.expires_in:
+            timestamp = qr_data.timestamp or int(datetime.now(timezone.utc).timestamp())
+            expires_at = timestamp + qr_data.expires_in
         
         # 生成二维码图片（可选）
         qr_image_bytes = generate_qr_code_image(encrypted_data)
@@ -429,17 +439,25 @@ async def verify_qrcode(
                     # 确认是未加密二维码
                     qrcode_type = 'plain'
         except (json.JSONDecodeError, ValueError):
-            # 不是JSON格式，尝试RSA解密（加密二维码）
+            # 不是JSON格式，尝试解密（简单加密或RSA加密）
+            data = None
             try:
-                data = rsa_decrypt(verify_data.encrypted_data, expand_short_keys=True, decompress=True)
+                # 先尝试简单解密（新格式）
+                from app.core.security import simple_decrypt
+                data = simple_decrypt(verify_data.encrypted_data)
                 qrcode_type = 'encrypted'
             except Exception:
-                # 既不是JSON也不是有效的加密数据
-                return QRCodeVerifyResponse(
-                    valid=False,
-                    data=None,
-                    expired=None
-                )
+                # 简单解密失败，尝试RSA解密（向后兼容）
+                try:
+                    data = rsa_decrypt(verify_data.encrypted_data, expand_short_keys=True, decompress=True)
+                    qrcode_type = 'encrypted'
+                except Exception:
+                    # 既不是JSON也不是有效的加密数据
+                    return QRCodeVerifyResponse(
+                        valid=False,
+                        data=None,
+                        expired=None
+                    )
         
         if not data or "room_id" not in data:
             return QRCodeVerifyResponse(
@@ -623,13 +641,20 @@ async def get_room_qrcode(
             
             logger.debug(f"生成加密二维码数据: {data}")
             
-            # RSA 加密签名
+            # 使用简单的加密（Base64 + XOR 混淆），快速且不直接显示明文
+            from app.core.security import simple_encrypt
             try:
-                encrypted_data = rsa_encrypt(data, use_short_keys=True, compress=True)
-                logger.debug(f"RSA 加密成功，数据长度: {len(encrypted_data)}")
+                # 必须包含完整的 API URL（不能只包含 room_id）
+                # 客户端不能内置任何默认URL，必须从二维码获取
+                simplified_data = {
+                    "r": room_id,
+                    "u": api_url,  # 必须包含完整的 API URL
+                }
+                encrypted_data = simple_encrypt(simplified_data)
+                logger.debug(f"简单加密成功，数据长度: {len(encrypted_data)}, 包含房间ID和API地址")
             except Exception as e:
-                logger.error(f"RSA 加密失败: {type(e).__name__}: {e}", exc_info=True)
-                raise ValueError(f"RSA 加密失败: {str(e)}")
+                logger.error(f"简单加密失败: {type(e).__name__}: {e}", exc_info=True)
+                raise ValueError(f"简单加密失败: {str(e)}")
             
             # 计算加密数据的哈希值
             encrypted_data_hash = calculate_encrypted_data_hash(encrypted_data)
@@ -722,11 +747,21 @@ async def get_room_qrcode(
                 logger.info(f"创建新的未加密二维码扫描记录，最大扫描次数: {unified_max_scans}")
                 qr_data = room_url
         
-        # 生成二维码图片
+        # 生成二维码图片（使用微信级别参数，提高相册识别率）
         try:
-            qr_image_bytes = generate_qr_code_image(qr_data)
+            if use_encrypted:
+                # 加密二维码：使用微信级别参数（box_size=5, border=2）
+                qr_image_bytes = generate_qr_code_image(qr_data)
+            else:
+                # 明文二维码：URL较长，使用 Level H 提高容错，但保持 box_size=5, border=2 降低密度
+                qr_image_bytes = generate_qr_code_image(
+                    qr_data, 
+                    error_correction=ERROR_CORRECT_H,  # Level H (30% 容错)，应对长URL
+                    box_size=5,  # 微信级别尺寸，降低密度
+                    border=2     # 减小边框，提高识别率
+                )
             qr_image_base64 = base64.b64encode(qr_image_bytes).decode('utf-8')
-            logger.debug(f"二维码图片生成成功，大小: {len(qr_image_bytes)} bytes")
+            logger.debug(f"二维码图片生成成功，大小: {len(qr_image_bytes)} bytes，类型: {'加密' if use_encrypted else '明文'}")
         except Exception as e:
             logger.error(f"二维码图片生成失败: {type(e).__name__}: {e}", exc_info=True)
             raise ValueError(f"二维码图片生成失败: {str(e)}")
@@ -837,13 +872,20 @@ async def get_room_qrcode_image(
             
             logger.debug(f"生成加密二维码数据: {data}")
             
-            # RSA 加密签名
+            # 使用简单的加密（Base64 + XOR 混淆），快速且不直接显示明文
+            from app.core.security import simple_encrypt
             try:
-                encrypted_data = rsa_encrypt(data, use_short_keys=True, compress=True)
-                logger.debug(f"RSA 加密成功，数据长度: {len(encrypted_data)}")
+                # 必须包含完整的 API URL（不能只包含 room_id）
+                # 客户端不能内置任何默认URL，必须从二维码获取
+                simplified_data = {
+                    "r": room_id,
+                    "u": api_url,  # 必须包含完整的 API URL
+                }
+                encrypted_data = simple_encrypt(simplified_data)
+                logger.debug(f"简单加密成功，数据长度: {len(encrypted_data)}, 包含房间ID和API地址")
             except Exception as e:
-                logger.error(f"RSA 加密失败: {type(e).__name__}: {e}", exc_info=True)
-                raise ValueError(f"RSA 加密失败: {str(e)}")
+                logger.error(f"简单加密失败: {type(e).__name__}: {e}", exc_info=True)
+                raise ValueError(f"简单加密失败: {str(e)}")
             
             # 计算加密数据的哈希值
             encrypted_data_hash = calculate_encrypted_data_hash(encrypted_data)
@@ -936,10 +978,20 @@ async def get_room_qrcode_image(
                 logger.info(f"创建新的未加密二维码扫描记录，最大扫描次数: {unified_max_scans}")
                 qr_data = room_url
         
-        # 生成二维码图片
+        # 生成二维码图片（使用微信级别参数，提高相册识别率）
         try:
-            qr_image_bytes = generate_qr_code_image(qr_data)
-            logger.debug(f"二维码图片生成成功，大小: {len(qr_image_bytes)} bytes，类型: {'加密' if use_encrypted else '未加密'}")
+            if use_encrypted:
+                # 加密二维码：使用微信级别参数（box_size=5, border=2）
+                qr_image_bytes = generate_qr_code_image(qr_data)
+            else:
+                # 明文二维码：URL较长，使用 Level H 提高容错，但保持 box_size=5, border=2 降低密度
+                qr_image_bytes = generate_qr_code_image(
+                    qr_data, 
+                    error_correction=ERROR_CORRECT_H,  # Level H (30% 容错)，应对长URL
+                    box_size=5,  # 微信级别尺寸，降低密度
+                    border=2     # 减小边框，提高识别率
+                )
+            logger.debug(f"二维码图片生成成功，大小: {len(qr_image_bytes)} bytes，类型: {'加密' if use_encrypted else '明文'}")
         except Exception as e:
             logger.error(f"二维码图片生成失败: {type(e).__name__}: {e}", exc_info=True)
             raise ValueError(f"二维码图片生成失败: {str(e)}")
@@ -962,4 +1014,118 @@ async def get_room_qrcode_image(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=i18n.t("qrcode.generate_failed", lang=lang, error=f"{type(e).__name__}: {str(e)}")
+        )
+
+
+@router.get("/auth")
+async def get_auth_qrcode(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    生成客户端扫码授权二维码（需登录）
+    
+    根据扫码配置与 CHAT_BASE_DOMAINS 列表随机生成明文或加密二维码。API 地址由
+    get_random_chat_api_url() 拼接：https + 域名 + CHAT_API_PATH（如 https://log.chat5202ol.xyz/api/v1）。
+    
+    - 加密：simple_encrypt({"api_url":"<url>","auth_token":"<jwt>"})，默认带盐（use_salt=True）。
+      **必须包含 api_url**：客户端不内置 API，API 唯一获取方式为扫码。
+      客户端 simple_decrypt 后得 api_url、auth_token，再 POST {api_url}/auth/confirm-scan 提交 {"token":"<auth_token>"}。
+      详见 docs/QRCODE_ENCRYPTION_DESIGN.md（带盐方案）。
+    - 明文：JSON {"type":"auth_qr","token":"<jwt>","api_url":"<url>"}，客户端直接解析后
+      POST {api_url}/auth/confirm-scan。
+    """
+    lang = current_user.language or get_language_from_request(request)
+    
+    try:
+        # 读取扫码配置（与房间二维码一致）
+        encrypted_enabled_result = await db.execute(
+            select(SystemConfig).where(SystemConfig.config_key == "qrcode.encrypted_enabled")
+        )
+        encrypted_enabled_config = encrypted_enabled_result.scalar_one_or_none()
+        encrypted_enabled = (
+            encrypted_enabled_config
+            and encrypted_enabled_config.config_value
+            and encrypted_enabled_config.config_value.strip().lower() == "true"
+        )
+
+        plain_enabled_result = await db.execute(
+            select(SystemConfig).where(SystemConfig.config_key == "qrcode.plain_enabled")
+        )
+        plain_enabled_config = plain_enabled_result.scalar_one_or_none()
+        plain_enabled = (
+            plain_enabled_config
+            and plain_enabled_config.config_value
+            and plain_enabled_config.config_value.strip().lower() == "true"
+        )
+
+        # 确定明文 / 加密：两者都开启时随机；仅一个开启则用该种；都关闭则默认加密
+        if plain_enabled and encrypted_enabled:
+            use_encrypted = random.choice([True, False])
+            logger.debug(f"授权二维码类型随机选择: use_encrypted={use_encrypted}")
+        elif plain_enabled:
+            use_encrypted = False
+        elif encrypted_enabled:
+            use_encrypted = True
+        else:
+            use_encrypted = True
+
+        # 从聊天 API 列表随机选取（含路径，如 https://log.chat5202ol.xyz/api/v1）
+        api_url = get_random_chat_api_url()
+        if not api_url or not api_url.strip():
+            raise ValueError("聊天 API 地址为空，请检查 CHAT_BASE_DOMAINS 配置")
+        logger.debug(f"授权二维码 API 地址: {api_url}")
+
+        jwt_token = create_access_token(
+            data={"sub": str(current_user.id), "type": "auth_qr"},
+            expires_delta=timedelta(minutes=5),
+        )
+        if not jwt_token:
+            raise ValueError("JWT token 生成失败")
+
+        if use_encrypted:
+            # 授权二维码必须包含 api_url：客户端不内置 API，API 唯一来源为扫码
+            payload = {"api_url": api_url, "auth_token": jwt_token}
+            qr_data = simple_encrypt(payload)
+            logger.debug(f"加密授权二维码数据长度: {len(qr_data)}（含 api_url，供客户端获取 API）")
+        else:
+            qr_data = json.dumps(
+                {"type": "auth_qr", "token": jwt_token, "api_url": api_url},
+                ensure_ascii=False,
+            )
+            logger.debug(f"明文授权二维码数据长度: {len(qr_data)}（含 api_url，供客户端获取 API）")
+
+        # 使用微信级别参数（box_size=5, border=2）降低密度，提高相册识别率
+        # 加密和明文都使用相同参数，确保样式一致且易识别
+        if use_encrypted:
+            qr_bytes = generate_qr_code_image(
+                qr_data,
+                error_correction=ERROR_CORRECT_M,  # Level M (15% 容错)，平衡密度与容错
+                box_size=5,  # 微信级别尺寸，降低密度
+                border=2,    # 减小边框，提高识别率
+            )
+        else:
+            qr_bytes = generate_qr_code_image(
+                qr_data,
+                error_correction=ERROR_CORRECT_M,  # 统一使用 Level M，避免版本过高
+                box_size=5,  # 微信级别尺寸，降低密度
+                border=2,    # 减小边框，提高识别率
+            )
+        if not qr_bytes or len(qr_bytes) == 0:
+            raise ValueError("生成的二维码图片数据为空")
+        logger.info(f"授权二维码生成成功，类型: {'加密' if use_encrypted else '明文'}，图片大小: {len(qr_bytes)} bytes")
+
+        return Response(
+            content=qr_bytes,
+            media_type="image/png",
+            headers={"Content-Disposition": "inline; filename=auth_qrcode.png"},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"授权二维码生成过程发生未预期错误: {type(e).__name__}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"生成授权二维码失败: {str(e)}",
         )

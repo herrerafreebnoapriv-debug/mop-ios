@@ -1,139 +1,30 @@
 """
-Jitsi 房间 API
-包含房间创建、查询、更新、加入和参与者管理功能
+Jitsi 房间加入 API
+视频通话和共享功能交由Jitsi自行处理，后端仅负责签发JWT token用于授权
 根据 Spec.txt：必须通过后端签发的 JWT 进行房门授权，实现强管控
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional
-import uuid
+from typing import Optional
 import hashlib
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, desc
+from sqlalchemy import select
 from pydantic import BaseModel, Field
 
 from app.core.i18n import i18n, get_language_from_request
 from app.core.security import create_jitsi_token
 from app.core.config import settings
 from loguru import logger
-from app.core.permissions import (
-    is_super_admin, is_room_owner, check_user_not_disabled,
-    check_room_ownership, check_room_creation_limit,
-    filter_visible_rooms, ROLE_ROOM_OWNER
-)
-from app.core.operation_log import log_operation
+from app.core.permissions import check_user_not_disabled
 from app.db.session import get_db
-from app.db.models import User, Room, RoomParticipant, QRCodeScan, Call
+from app.db.models import User, QRCodeScan
 from app.api.v1.auth import get_current_user
 
 router = APIRouter()
 
 
-# ==================== 房间ID生成工具函数 ====================
-
-def generate_hex8_room_id() -> str:
-    """
-    生成8位16进制房间ID
-    格式：r-{8位16进制}
-    示例：r-a1b2c3d4
-    
-    使用加密安全的随机数生成器，确保不可预测
-    """
-    import secrets
-    # 生成4字节随机数，转换为8位16进制
-    hex8 = secrets.token_hex(4)  # 4字节 = 8位16进制
-    return f"r-{hex8}"
-
-
-async def generate_unique_room_id(db: AsyncSession, max_retries: int = 10) -> str:
-    """
-    生成唯一的房间ID（带碰撞检测）
-    
-    Args:
-        db: 数据库会话
-        max_retries: 最大重试次数
-    
-    Returns:
-        唯一的房间ID
-    """
-    for _ in range(max_retries):
-        room_id = generate_hex8_room_id()
-        
-        # 检查是否已存在
-        result = await db.execute(
-            select(Room).where(Room.room_id == room_id)
-        )
-        existing_room = result.scalar_one_or_none()
-        
-        if not existing_room:
-            return room_id
-    
-    # 如果多次重试后仍然冲突，使用UUID作为后备方案
-    return f"r-{uuid.uuid4().hex[:8]}"
-
-
-def validate_room_id_format(room_id: str) -> bool:
-    """
-    验证房间ID格式
-    
-    支持的格式：
-    1. 8位16进制格式：r-{8位16进制}（推荐）
-    2. 其他格式（向后兼容）
-    
-    Args:
-        room_id: 房间ID
-    
-    Returns:
-        是否为有效格式
-    """
-    if not room_id or len(room_id) < 3:
-        return False
-    
-    # 8位16进制格式：r-{8位16进制}
-    if room_id.startswith("r-") and len(room_id) == 10:
-        hex_part = room_id[2:]
-        try:
-            int(hex_part, 16)
-            return True
-        except ValueError:
-            return False
-    
-    # 其他格式（向后兼容，不验证具体格式）
-    return True  # 允许其他自定义格式
-
-
 # ==================== 请求/响应模型 ====================
-
-class RoomCreate(BaseModel):
-    """房间创建请求模型"""
-    room_name: Optional[str] = Field(None, max_length=200, description="房间名称")
-    max_occupants: Optional[int] = Field(None, ge=1, le=100, description="最大在线人数（默认10）")
-    room_id: Optional[str] = Field(None, max_length=100, description="自定义房间ID（可选，默认自动生成）")
-
-
-class RoomUpdate(BaseModel):
-    """房间更新请求模型"""
-    room_name: Optional[str] = Field(None, max_length=200, description="房间名称")
-    max_occupants: Optional[int] = Field(None, ge=1, le=100, description="最大在线人数")
-    is_active: Optional[bool] = Field(None, description="是否激活")
-
-
-class RoomResponse(BaseModel):
-    """房间响应模型"""
-    id: int
-    room_id: str
-    room_name: Optional[str]
-    created_by: int
-    max_occupants: int
-    is_active: bool
-    participant_count: int
-    created_at: str
-    updated_at: str
-    
-    class Config:
-        from_attributes = True
-
 
 class RoomJoin(BaseModel):
     """加入房间请求模型"""
@@ -151,387 +42,7 @@ class RoomJoinResponse(BaseModel):
     room_url: str
 
 
-class ParticipantResponse(BaseModel):
-    """参与者响应模型"""
-    id: int
-    user_id: int
-    display_name: Optional[str]
-    is_moderator: bool
-    joined_at: str
-    left_at: Optional[str]
-    is_active: bool
-    user_nickname: Optional[str]
-    
-    class Config:
-        from_attributes = True
-
-
 # ==================== API 路由 ====================
-
-@router.get("/", response_model=List[RoomResponse])
-async def list_rooms(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    skip: int = Query(0, ge=0, description="跳过记录数"),
-    limit: int = Query(100, ge=1, le=100, description="返回记录数")
-):
-    """
-    获取房间列表
-    
-    超级管理员：可以看到所有房间
-    房主：只能看到自己创建的房间
-    普通用户：只能看到自己创建的房间
-    """
-    lang = current_user.language or get_language_from_request(request)
-    check_user_not_disabled(current_user, lang)
-    
-    # 记录操作日志
-    await log_operation(
-        db=db,
-        user=current_user,
-        operation_type="read",
-        resource_type="room",
-        request=request
-    )
-    
-    # 根据权限过滤房间
-    visible_rooms = await filter_visible_rooms(current_user, db)
-    
-    # 应用分页
-    paginated_rooms = visible_rooms[skip:skip + limit]
-    
-    # 为每个房间统计参与者数量
-    room_responses = []
-    for room in paginated_rooms:
-        participant_count_result = await db.execute(
-            select(func.count(RoomParticipant.id)).where(
-                and_(
-                    RoomParticipant.__table__.c.room_id == room.id,
-                    RoomParticipant.__table__.c.is_active == True
-                )
-            )
-        )
-        participant_count = participant_count_result.scalar() or 0
-        
-        room_responses.append(RoomResponse(
-            id=room.id,
-            room_id=room.room_id,
-            room_name=room.room_name,
-            created_by=room.created_by,
-            max_occupants=room.max_occupants,
-            is_active=room.is_active,
-            participant_count=participant_count,
-            created_at=room.created_at.isoformat(),
-            updated_at=room.updated_at.isoformat()
-        ))
-    
-    await db.commit()  # 提交操作日志
-    
-    return room_responses
-
-
-@router.post("/create", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
-async def create_room(
-    room_data: RoomCreate,
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    创建房间
-    
-    超级管理员：无限制
-    房主：检查房间数限制和人数上限（默认3）
-    普通用户：不允许创建房间
-    """
-    lang = current_user.language or get_language_from_request(request)
-    check_user_not_disabled(current_user, lang)
-    
-    # 检查用户是否可以创建房间
-    await check_room_creation_limit(current_user, db, lang)
-    
-    # 生成房间ID（如果未提供）
-    if room_data.room_id:
-        room_id = room_data.room_id
-        if not validate_room_id_format(room_id):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=i18n.t("room.invalid_id_format", lang=lang, room_id=room_id)
-            )
-    else:
-        room_id = await generate_unique_room_id(db)
-    
-    # 检查房间ID是否已存在
-    result = await db.execute(
-        select(Room).where(Room.room_id == room_id)
-    )
-    existing_room = result.scalar_one_or_none()
-    
-    if existing_room:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=i18n.t("room.id_exists", lang=lang, room_id=room_id)
-        )
-    
-    # 确定房间最大人数上限
-    if is_room_owner(current_user) and current_user.default_max_occupants:
-        default_max_occupants = current_user.default_max_occupants
-    else:
-        default_max_occupants = settings.JITSI_ROOM_MAX_OCCUPANTS
-    
-    max_occupants = room_data.max_occupants or default_max_occupants
-    
-    # 房主不能超过默认人数上限
-    if is_room_owner(current_user) and current_user.default_max_occupants:
-        if max_occupants > current_user.default_max_occupants:
-            max_occupants = current_user.default_max_occupants
-    
-    # 创建房间
-    new_room = Room(
-        room_id=room_id,
-        room_name=room_data.room_name,
-        created_by=current_user.id,
-        max_occupants=max_occupants,
-        is_active=True
-    )
-    
-    db.add(new_room)
-    await db.commit()
-    await db.refresh(new_room)
-    
-    # 记录操作日志
-    await log_operation(
-        db=db,
-        user=current_user,
-        operation_type="create",
-        resource_type="room",
-        resource_id=new_room.id,
-        resource_name=new_room.room_name or new_room.room_id,
-        operation_detail={"room_id": new_room.room_id, "max_occupants": max_occupants},
-        request=request
-    )
-    await db.commit()
-    
-    return RoomResponse(
-        id=new_room.id,
-        room_id=new_room.room_id,
-        room_name=new_room.room_name,
-        created_by=new_room.created_by,
-        max_occupants=new_room.max_occupants,
-        is_active=new_room.is_active,
-        participant_count=0,
-        created_at=new_room.created_at.isoformat(),
-        updated_at=new_room.updated_at.isoformat()
-    )
-
-
-@router.get("/{room_id}", response_model=RoomResponse)
-async def get_room(
-    room_id: str,
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    获取房间信息
-    
-    超级管理员：可以查看所有房间
-    房主：只能查看自己创建的房间
-    """
-    lang = get_language_from_request(request)
-    if current_user:
-        lang = current_user.language or lang
-    
-    check_user_not_disabled(current_user, lang)
-    
-    # 检查权限并获取房间
-    room = await check_room_ownership(room_id, current_user, db, lang)
-    
-    # 记录操作日志
-    await log_operation(
-        db=db,
-        user=current_user,
-        operation_type="read",
-        resource_type="room",
-        resource_id=room.id,
-        resource_name=room.room_name or room.room_id,
-        request=request
-    )
-    
-    # 统计当前活跃参与者数量
-    participant_count_result = await db.execute(
-        select(func.count(RoomParticipant.id)).where(
-            and_(
-                RoomParticipant.__table__.c.room_id == room.id,
-                RoomParticipant.__table__.c.is_active == True
-            )
-        )
-    )
-    participant_count = participant_count_result.scalar() or 0
-    
-    await db.commit()  # 提交操作日志
-    
-    return RoomResponse(
-        id=room.id,
-        room_id=room.room_id,
-        room_name=room.room_name,
-        created_by=room.created_by,
-        max_occupants=room.max_occupants,
-        is_active=room.is_active,
-        participant_count=participant_count,
-        created_at=room.created_at.isoformat(),
-        updated_at=room.updated_at.isoformat()
-    )
-
-
-@router.put("/{room_id}/max_occupants", response_model=RoomResponse)
-async def update_room_max_occupants(
-    room_id: str,
-    max_occupants: int = Query(..., ge=1, le=100, description="最大在线人数"),
-    request: Request = None,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    设置房间最大人数
-    
-    超级管理员：可以设置任何房间
-    房主：只能设置自己的房间，且不能超过默认人数上限（默认3）
-    """
-    lang = current_user.language or get_language_from_request(request)
-    check_user_not_disabled(current_user, lang)
-    
-    # 检查权限并获取房间
-    room = await check_room_ownership(room_id, current_user, db, lang)
-    
-    # 房主不能超过默认人数上限
-    if is_room_owner(current_user) and current_user.default_max_occupants:
-        if max_occupants > current_user.default_max_occupants:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=i18n.t("room.max_occupants_exceeded", lang=lang, max=current_user.default_max_occupants)
-            )
-    
-    old_max_occupants = room.max_occupants
-    
-    # 更新最大人数
-    room.max_occupants = max_occupants
-    
-    await db.commit()
-    await db.refresh(room)
-    
-    # 记录操作日志
-    await log_operation(
-        db=db,
-        user=current_user,
-        operation_type="update",
-        resource_type="room",
-        resource_id=room.id,
-        resource_name=room.room_name or room.room_id,
-        operation_detail={"field": "max_occupants", "old_value": old_max_occupants, "new_value": max_occupants},
-        request=request
-    )
-    await db.commit()
-    
-    # 统计当前活跃参与者数量
-    participant_count_result = await db.execute(
-        select(func.count(RoomParticipant.id)).where(
-            and_(
-                RoomParticipant.__table__.c.room_id == room.id,
-                RoomParticipant.__table__.c.is_active == True
-            )
-        )
-    )
-    participant_count = participant_count_result.scalar() or 0
-    
-    return RoomResponse(
-        id=room.id,
-        room_id=room.room_id,
-        room_name=room.room_name,
-        created_by=room.created_by,
-        max_occupants=room.max_occupants,
-        is_active=room.is_active,
-        participant_count=participant_count,
-        created_at=room.created_at.isoformat(),
-        updated_at=room.updated_at.isoformat()
-    )
-
-
-@router.put("/{room_id}", response_model=RoomResponse)
-async def update_room(
-    room_id: str,
-    room_data: RoomUpdate,
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    更新房间信息
-    
-    超级管理员：可以更新任何房间
-    房主：只能更新自己创建的房间
-    """
-    lang = current_user.language or get_language_from_request(request)
-    check_user_not_disabled(current_user, lang)
-    
-    # 检查权限并获取房间
-    room = await check_room_ownership(room_id, current_user, db, lang)
-    
-    # 更新字段
-    if room_data.room_name is not None:
-        room.room_name = room_data.room_name
-    if room_data.max_occupants is not None:
-        # 房主不能超过默认人数上限
-        if is_room_owner(current_user) and current_user.default_max_occupants:
-            if room_data.max_occupants > current_user.default_max_occupants:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=i18n.t("room.max_occupants_exceeded", lang=lang, max=current_user.default_max_occupants)
-                )
-        room.max_occupants = room_data.max_occupants
-    if room_data.is_active is not None:
-        room.is_active = room_data.is_active
-    
-    await db.commit()
-    await db.refresh(room)
-    
-    # 记录操作日志
-    await log_operation(
-        db=db,
-        user=current_user,
-        operation_type="update",
-        resource_type="room",
-        resource_id=room.id,
-        resource_name=room.room_name or room.room_id,
-        operation_detail={"room_data": room_data.dict(exclude_unset=True)},
-        request=request
-    )
-    await db.commit()
-    
-    # 统计当前活跃参与者数量
-    participant_count_result = await db.execute(
-        select(func.count(RoomParticipant.id)).where(
-            and_(
-                RoomParticipant.__table__.c.room_id == room.id,
-                RoomParticipant.__table__.c.is_active == True
-            )
-        )
-    )
-    participant_count = participant_count_result.scalar() or 0
-    
-    return RoomResponse(
-        id=room.id,
-        room_id=room.room_id,
-        room_name=room.room_name,
-        created_by=room.created_by,
-        max_occupants=room.max_occupants,
-        is_active=room.is_active,
-        participant_count=participant_count,
-        created_at=room.created_at.isoformat(),
-        updated_at=room.updated_at.isoformat()
-    )
-
 
 @router.post("/join-guest", response_model=RoomJoinResponse)
 async def join_room_as_guest(
@@ -556,7 +67,7 @@ async def join_room_as_guest(
     
     # 解析未加密二维码数据（支持URL格式或JSON格式）
     import json
-    from urllib.parse import urlparse, parse_qs
+    from urllib.parse import urlparse
     
     room_id = None
     
@@ -602,24 +113,6 @@ async def join_room_as_guest(
             detail=i18n.t("qrcode.expired", lang=lang) or "二维码已失效"
         )
     
-    # 查找房间
-    result = await db.execute(
-        select(Room).where(Room.room_id == room_id)
-    )
-    room = result.scalar_one_or_none()
-    
-    if not room:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=i18n.t("room.not_found", lang=lang)
-        )
-    
-    if not room.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=i18n.t("room.inactive", lang=lang)
-        )
-    
     # 更新二维码扫描次数（如果有限制）
     if qr_scan and qr_scan.max_scans > 0:
         qr_scan.scan_count += 1
@@ -628,7 +121,6 @@ async def join_room_as_guest(
         await db.commit()
     
     # 生成临时用户标识和JWT Token
-    import hashlib
     temp_user_id = int(hashlib.sha256(plain_data_hash.encode()).hexdigest()[:8], 16) % 1000000
     user_name = join_data.display_name or f"游客{temp_user_id % 10000}"
     
@@ -768,23 +260,8 @@ async def join_room_by_qrcode(
             detail=i18n.t("qrcode.expired", lang=lang) or "二维码已失效"
         )
     
-    # 查找房间
-    result = await db.execute(
-        select(Room).where(Room.room_id == room_id)
-    )
-    room = result.scalar_one_or_none()
-    
-    if not room:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=i18n.t("room.not_found", lang=lang)
-        )
-    
-    if not room.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=i18n.t("room.inactive", lang=lang) or "房间已关闭"
-        )
+    # 去除后台房间功能，视频通话和共享功能交由Jitsi自行处理
+    # 不再检查或创建数据库中的房间记录，直接基于room_id生成JWT token
     
     # 更新二维码扫描次数（max_scans=0表示不限制）
     if qr_scan and qr_scan.max_scans > 0:
@@ -794,7 +271,6 @@ async def join_room_by_qrcode(
         await db.commit()
     
     # 生成临时用户标识和JWT Token
-    import hashlib
     # 基于二维码数据生成临时用户标识
     temp_user_id = int(hashlib.sha256(encrypted_data_hash.encode()).hexdigest()[:8], 16) % 1000000
     user_name = join_data.display_name or f"访客{temp_user_id % 10000}"
@@ -846,6 +322,9 @@ async def join_room(
     
     根据 Spec.txt：必须通过后端签发的 JWT 进行房门授权，实现强管控
     返回 Jitsi JWT Token 和房间 URL
+    
+    去除后台房间功能，视频通话和共享功能交由Jitsi自行处理
+    不再检查或创建数据库中的房间记录，直接基于room_id生成JWT token
     """
     lang = current_user.language or get_language_from_request(request)
     check_user_not_disabled(current_user, lang)
@@ -873,75 +352,16 @@ async def join_room(
                 qr_scan.is_expired = True
             await db.commit()
     
-    # 查找房间
-    result = await db.execute(
-        select(Room).where(Room.room_id == room_id)
-    )
-    room = result.scalar_one_or_none()
-    
-    if not room:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=i18n.t("room.not_found", lang=lang)
-        )
-    
-    if not room.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=i18n.t("room.inactive", lang=lang)
-        )
-    
-    # 检查房间是否已满
-    participant_count_result = await db.execute(
-        select(func.count(RoomParticipant.id)).where(
-            and_(
-                RoomParticipant.__table__.c.room_id == room.id,
-                RoomParticipant.__table__.c.is_active == True
-            )
-        )
-    )
-    participant_count = participant_count_result.scalar() or 0
-    
-    if participant_count >= room.max_occupants:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=i18n.t("room.full", lang=lang, max_occupants=room.max_occupants)
-        )
-    
-    # 检查是否已经是参与者
-    existing_participant_result = await db.execute(
-        select(RoomParticipant).where(
-            and_(
-                RoomParticipant.__table__.c.room_id == room.id,
-                RoomParticipant.__table__.c.user_id == current_user.id,
-                RoomParticipant.__table__.c.is_active == True
-            )
-        )
-    )
-    existing_participant = existing_participant_result.scalar_one_or_none()
-    
-    if existing_participant:
-        # 更新参与者信息
-        existing_participant.display_name = join_data.display_name or current_user.nickname
-        existing_participant.is_moderator = join_data.is_moderator if room.created_by == current_user.id else existing_participant.is_moderator
-    else:
-        # 创建新的参与者记录
-        is_moderator = join_data.is_moderator and (room.created_by == current_user.id)
-        
-        new_participant = RoomParticipant(
-            room_id=room.id,
-            user_id=current_user.id,
-            display_name=join_data.display_name or current_user.nickname,
-            is_moderator=is_moderator,
-            is_active=True
-        )
-        db.add(new_participant)
-    
-    await db.commit()
+    # 去除后台房间功能，视频通话和共享功能交由Jitsi自行处理
+    # 不再检查或创建数据库中的房间记录，直接基于room_id生成JWT token
+    # 房间人数限制和参与者管理由Jitsi自行处理
     
     # 生成 Jitsi JWT Token
     user_name = join_data.display_name or current_user.nickname or current_user.username or current_user.phone
-    is_moderator = join_data.is_moderator and (room.created_by == current_user.id)
+    
+    # 已登录用户可以通过 is_moderator 参数控制是否为主持人
+    # 但为了安全，这里默认不是主持人，只有在特殊情况下才允许
+    is_moderator = join_data.is_moderator if join_data.is_moderator else False
     
     jitsi_token = create_jitsi_token(
         room_id=room_id,
@@ -956,46 +376,7 @@ async def join_room(
     base_url = str(request.base_url).rstrip('/')
     room_url = f"{base_url}/room/{room_id}?{urlencode({'jwt': jitsi_token, 'server': settings.JITSI_SERVER_URL})}"
     
-    # 记录操作日志
-    await log_operation(
-        db=db,
-        user=current_user,
-        operation_type="read",
-        resource_type="room",
-        resource_id=room.id,
-        resource_name=room.room_name or room.room_id,
-        operation_detail={"action": "join"},
-        request=request
-    )
-    
-    # 创建通话记录（如果不存在）
-    # 检查是否已有该用户在该房间的活跃通话记录
-    existing_call_result = await db.execute(
-        select(Call).where(
-            and_(
-                Call.room_id == room.id,
-                Call.caller_id == current_user.id,
-                Call.call_status.in_(["initiated", "ringing", "connected"])
-            )
-        ).order_by(desc(Call.created_at))
-    )
-    existing_call = existing_call_result.scalar_one_or_none()
-    
-    if not existing_call:
-        # 创建新的通话记录
-        new_call = Call(
-            call_type="video",  # 默认视频通话
-            call_status="connected",  # 加入房间时状态为已连接
-            caller_id=current_user.id,
-            callee_id=None,  # 房间通话没有特定接收者
-            room_id=room.id,
-            jitsi_room_id=room_id,
-            start_time=datetime.utcnow(),
-            created_at=datetime.utcnow()
-        )
-        db.add(new_call)
-    
-    await db.commit()
+    logger.info(f"✓ 用户 {current_user.id} ({user_name}) 加入房间 {room_id}")
     
     return RoomJoinResponse(
         room_id=room_id,
@@ -1003,156 +384,3 @@ async def join_room(
         jitsi_server_url=settings.JITSI_SERVER_URL,
         room_url=room_url
     )
-
-
-@router.get("/{room_id}/participants", response_model=List[ParticipantResponse])
-async def get_room_participants(
-    room_id: str,
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    获取房间参与者
-    
-    获取指定房间的所有参与者列表
-    """
-    lang = current_user.language or get_language_from_request(request)
-    check_user_not_disabled(current_user, lang)
-    
-    # 检查权限并获取房间
-    room = await check_room_ownership(room_id, current_user, db, lang)
-    
-    # 获取参与者列表（包含用户信息）
-    participants_result = await db.execute(
-        select(RoomParticipant, User).join(
-            User, RoomParticipant.__table__.c.user_id == User.id
-        ).where(
-            RoomParticipant.__table__.c.room_id == room.id,
-            RoomParticipant.__table__.c.is_active == True
-        ).order_by(RoomParticipant.__table__.c.joined_at)
-    )
-    participants_data = participants_result.all()
-    
-    participants = []
-    for participant, user in participants_data:
-        participants.append(ParticipantResponse(
-            id=participant.id,
-            user_id=participant.user_id,
-            display_name=participant.display_name,
-            is_moderator=participant.is_moderator,
-            joined_at=participant.joined_at.isoformat(),
-            left_at=participant.left_at.isoformat() if participant.left_at else None,
-            is_active=participant.is_active,
-            user_nickname=user.nickname
-        ))
-    
-    return participants
-
-
-@router.post("/{room_id}/leave", status_code=status.HTTP_200_OK)
-async def leave_room(
-    room_id: str,
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    离开房间
-    
-    更新参与者状态并更新通话记录
-    """
-    lang = current_user.language or get_language_from_request(request)
-    check_user_not_disabled(current_user, lang)
-    
-    # 查找房间
-    result = await db.execute(
-        select(Room).where(Room.room_id == room_id)
-    )
-    room = result.scalar_one_or_none()
-    
-    if not room:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=i18n.t("room.not_found", lang=lang)
-        )
-    
-    # 查找参与者记录
-    participant_result = await db.execute(
-        select(RoomParticipant).where(
-            and_(
-                RoomParticipant.room_id == room.id,
-                RoomParticipant.user_id == current_user.id,
-                RoomParticipant.is_active == True
-            )
-        )
-    )
-    participant = participant_result.scalar_one_or_none()
-    
-    if participant:
-        # 更新参与者状态
-        participant.is_active = False
-        participant.left_at = datetime.utcnow()
-    
-    # 更新通话记录
-    call_result = await db.execute(
-        select(Call).where(
-            and_(
-                Call.room_id == room.id,
-                Call.caller_id == current_user.id,
-                Call.call_status.in_(["initiated", "ringing", "connected"])
-            )
-        ).order_by(desc(Call.created_at))
-    )
-    call = call_result.scalar_one_or_none()
-    
-    if call:
-        # 更新通话记录
-        call.call_status = "ended"
-        call.end_time = datetime.utcnow()
-        if call.start_time:
-            duration_delta = call.end_time - call.start_time
-            call.duration = int(duration_delta.total_seconds())
-    
-    await db.commit()
-    
-    return {"message": "已离开房间", "room_id": room_id}
-
-
-@router.delete("/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_room(
-    room_id: str,
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    删除房间
-    
-    房主可以删除自己创建的房间
-    超级管理员可以删除任何房间（通过 /admin/rooms/{room_id}）
-    """
-    lang = current_user.language or get_language_from_request(request)
-    check_user_not_disabled(current_user, lang)
-    
-    # 检查权限并获取房间
-    room = await check_room_ownership(room_id, current_user, db, lang)
-    
-    room_name = room.room_name or room.room_id
-    room_id_for_log = room.id
-    
-    # 删除房间（级联删除参与者）
-    await db.delete(room)
-    await db.commit()
-    
-    # 记录操作日志
-    await log_operation(
-        db=db,
-        user=current_user,
-        operation_type="delete",
-        resource_type="room",
-        resource_id=room_id_for_log,
-        resource_name=room_name,
-        request=request
-    )
-    await db.commit()

@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../providers/language_provider.dart';
-import '../../locales/app_localizations.dart';
 import '../../services/api/users_api_service.dart';
 
 /// 账户设置标签页
@@ -12,7 +11,6 @@ class SettingsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
     final authProvider = Provider.of<AuthProvider>(context);
     final languageProvider = Provider.of<LanguageProvider>(context);
     final user = authProvider.currentUser;
@@ -22,50 +20,50 @@ class SettingsTab extends StatelessWidget {
       appBar: null,
       body: ListView(
         children: [
-          // 个人资料部分
+          // 個人資料部分（與網頁版一致）
           _SettingsSection(
-            title: l10n?.t('settings.profile') ?? '个人资料',
+            title: '個人資料',
             children: [
               _SettingsItem(
-                label: l10n?.t('settings.username') ?? '用户名',
-                value: user?.username ?? '--',
+                label: '用戶名',
+                value: user?.username ?? '未設置',
               ),
               _SettingsItem(
-                label: l10n?.t('settings.phone') ?? '手机号',
-                value: user?.phone ?? '--',
+                label: '手機號',
+                value: user?.phone ?? '未設置',
               ),
               _SettingsItem(
-                label: l10n?.t('settings.nickname') ?? '昵称',
-                value: user?.nickname ?? '--',
+                label: '暱稱',
+                value: user?.nickname ?? '未設置',
               ),
               _SettingsItem(
-                label: l10n?.t('settings.language') ?? '语言',
+                label: '語言',
                 value: LanguageProvider.getLanguageName(languageProvider.currentLocale),
                 onTap: () => _showLanguageSelector(context, languageProvider),
               ),
             ],
           ),
 
-          // 账户操作部分
+          // 賬戶操作部分（與網頁版一致）
           _SettingsSection(
-            title: l10n?.t('settings.account_actions') ?? '账户操作',
+            title: '賬戶操作',
             children: [
               _SettingsItem(
-                label: l10n?.t('settings.change_password') ?? '修改密码',
+                label: '修改密碼',
                 trailing: ElevatedButton(
                   onPressed: () => _showChangePasswordDialog(context),
-                  child: Text(l10n?.t('settings.change') ?? '修改'),
+                  child: const Text('修改'),
                 ),
               ),
               _SettingsItem(
-                label: l10n?.t('settings.logout') ?? '退出账户',
+                label: '退出賬戶',
                 trailing: ElevatedButton(
                   onPressed: () => _showLogoutDialog(context, authProvider),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                     foregroundColor: Colors.white,
                   ),
-                  child: Text(l10n?.t('settings.logout') ?? '退出'),
+                  child: const Text('退出'),
                 ),
               ),
             ],
@@ -83,9 +81,9 @@ class SettingsTab extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              AppLocalizations.of(context)?.t('settings.select_language') ?? '选择语言',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            const Text(
+              '選擇語言',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             ...LanguageProvider.supportedLocales.map((locale) {
@@ -115,29 +113,29 @@ class SettingsTab extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(AppLocalizations.of(context)?.t('settings.change_password') ?? '修改密码'),
+        title: const Text('修改密碼'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: oldPasswordController,
               obscureText: true,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)?.t('settings.old_password') ?? '当前密码',
+              decoration: const InputDecoration(
+                labelText: '舊密碼',
               ),
             ),
             TextField(
               controller: newPasswordController,
               obscureText: true,
               decoration: const InputDecoration(
-                labelText: '新密码',
+                labelText: '新密碼',
               ),
             ),
             TextField(
               controller: confirmPasswordController,
               obscureText: true,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)?.t('settings.confirm_password') ?? '确认新密码',
+              decoration: const InputDecoration(
+                labelText: '確認新密碼',
               ),
             ),
           ],
@@ -145,7 +143,7 @@ class SettingsTab extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(AppLocalizations.of(context)?.t('common.cancel') ?? '取消'),
+            child: const Text('取消'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -155,21 +153,21 @@ class SettingsTab extends StatelessWidget {
               
               if (oldPassword.isEmpty || newPassword.isEmpty || confirmPassword.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(AppLocalizations.of(context)?.t('settings.fill_all_fields') ?? '请填写所有字段')),
+                  const SnackBar(content: Text('請填寫所有欄位')),
                 );
                 return;
               }
               
               if (newPassword != confirmPassword) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(AppLocalizations.of(context)?.t('settings.password_mismatch') ?? '两次输入的密码不一致')),
+                  const SnackBar(content: Text('兩次輸入的密碼不一致')),
                 );
                 return;
               }
               
               if (newPassword.length < 6) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(AppLocalizations.of(context)?.t('settings.password_too_short') ?? '密码长度至少6位')),
+                  const SnackBar(content: Text('密碼長度至少6位')),
                 );
                 return;
               }
@@ -183,18 +181,17 @@ class SettingsTab extends StatelessWidget {
                 
                 if (context.mounted) {
                   Navigator.of(context).pop();
-                  final l10n = AppLocalizations.of(context);
                   if (success) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(l10n?.t('settings.password_changed') ?? '密码修改成功'),
+                      const SnackBar(
+                        content: Text('密碼修改成功'),
                         backgroundColor: Colors.green,
                       ),
                     );
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(l10n?.t('settings.password_change_failed') ?? '密码修改失败，请检查旧密码是否正确'),
+                      const SnackBar(
+                        content: Text('密碼修改失敗，請檢查舊密碼是否正確'),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -203,17 +200,16 @@ class SettingsTab extends StatelessWidget {
               } catch (e) {
                 if (context.mounted) {
                   Navigator.of(context).pop();
-                  final l10n = AppLocalizations.of(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('${l10n?.t('errors.change_failed') ?? '修改失败'}: $e'),
+                      content: Text('修改失敗: $e'),
                       backgroundColor: Colors.red,
                     ),
                   );
                 }
               }
             },
-            child: Text(AppLocalizations.of(context)?.t('common.confirm') ?? '确认'),
+            child: const Text('確認'),
           ),
         ],
       ),
@@ -224,12 +220,12 @@ class SettingsTab extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(AppLocalizations.of(context)?.t('settings.logout_confirm') ?? '确认退出'),
-        content: Text(AppLocalizations.of(context)?.t('settings.logout_confirm_message') ?? '确定要退出账户吗？'),
+        title: const Text('確認退出'),
+        content: const Text('確定要退出賬戶嗎？'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(AppLocalizations.of(context)?.t('common.cancel') ?? '取消'),
+            child: const Text('取消'),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -242,7 +238,7 @@ class SettingsTab extends StatelessWidget {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: Text(AppLocalizations.of(context)?.t('settings.logout') ?? '退出'),
+            child: const Text('退出'),
           ),
         ],
       ),

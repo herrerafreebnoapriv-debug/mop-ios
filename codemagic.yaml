@@ -1,0 +1,79 @@
+# mop-ios 无 Mac 云构建：Flutter 应用在 mobile/ 子目录
+# 文档：https://docs.codemagic.io/flutter-configuration/flutter-projects
+
+workflows:
+  ios-release:
+    name: iOS Release（无 Mac 云构建）
+    working_directory: mobile
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+
+    integrations:
+      app_store_connect: codemagic
+
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.mop.app
+      vars:
+        XCODE_WORKSPACE: "ios/Runner.xcworkspace"
+        APP_STORE_APP_ID: "1234567890"   # 在 App Store Connect 创建应用后替换
+        XCODE_SCHEME: "Runner"
+        BUNDLE_ID: com.mop.app
+        ENTRY_POINT: "lib/main.dart"
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+        - pattern: master
+          include: true
+          source: true
+
+    scripts:
+      - name: 清理并获取依赖
+        script: |
+          flutter clean
+          flutter pub get
+
+      - name: 安装 CocoaPods
+        script: |
+          find . -name "Podfile" -execdir pod install \;
+
+      - name: 配置 Xcode 签名
+        script: |
+          xcode-project use-profiles
+
+      - name: 构建 IPA（自动递增 build 号）
+        script: |
+          flutter build ipa --release \
+            --build-name=1.0.0 \
+            --build-number=$(($(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID") + 1)) \
+            --export-options-plist=/Users/builder/export_options.plist \
+            -t "$ENTRY_POINT"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+
+    publishing:
+      email:
+        recipients:
+          - your-email@example.com   # 改为你的邮箱
+        notify:
+          success: true
+          failure: true
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+      scripts:
+        - name: IPA 构建完成
+          script: |
+            echo "IPA 已生成，见 artifacts"

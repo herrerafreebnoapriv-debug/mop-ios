@@ -329,6 +329,14 @@ async def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
+    # 检查用户是否可以登录后端（仅超级管理员和普通管理员可以登录后端）
+    from app.core.permissions import can_access_backend
+    if not can_access_backend(user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=i18n.get("auth.login.backend_access_denied", lang) or "普通用户不能登录后端管理系统"
+        )
+    
     # 检查是否已同意免责声明
     if user.agreed_at is None:
         raise HTTPException(
@@ -363,6 +371,11 @@ async def login(
 class RefreshTokenRequest(BaseModel):
     """刷新令牌请求模型"""
     refresh_token: str = Field(..., description="刷新令牌")
+
+
+class ConfirmScanRequest(BaseModel):
+    """扫码授权确认请求模型"""
+    token: str = Field(..., description="授权二维码中的 JWT")
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -444,6 +457,38 @@ async def get_current_user_info(
         role=current_user.role or "user",
         created_at=current_user.created_at.isoformat() if current_user.created_at else ""
     )
+
+
+@router.post("/confirm-scan")
+async def confirm_scan(
+    request_data: ConfirmScanRequest,
+    request: Request = None,
+):
+    """
+    客户端扫码授权确认
+    
+    客户端扫描后台生成的授权二维码后，将二维码中的 token 提交至此接口完成授权。
+    """
+    lang = get_language_from_request(request) if request else "zh_CN"
+    payload = decode_token(request_data.token)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="二维码已过期或无效，请重新生成"
+        )
+    if payload.get("type") != "auth_qr":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="无效的授权二维码"
+        )
+    user_id_str = payload.get("sub")
+    if not user_id_str:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无效的授权二维码")
+    try:
+        user_id = int(user_id_str)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无效的授权二维码")
+    return {"user_id": user_id, "message": "授权成功"}
 
 
 @router.post("/logout")

@@ -103,6 +103,8 @@
             const urlParams = new URLSearchParams(window.location.search);
             const roomId = urlParams.get('room') || window.location.pathname.split('/').pop();
             const jwtToken = urlParams.get('jwt');
+            const displayName = urlParams.get('display_name') || '';
+            const isEmbed = urlParams.get('embed') === '1' || (window.self !== window.top);
             // 从 URL 参数获取服务器地址（必须提供，因为使用自建 Jitsi）
             const serverUrl = urlParams.get('server');
             if (!serverUrl) {
@@ -110,7 +112,6 @@
                 return;
             }
             
-            console.log('房间信息:', { roomId, jwtToken: jwtToken ? jwtToken.substring(0, 20) + '...' : '无', serverUrl });
             
             // 检查必要参数
             if (!roomId) {
@@ -129,15 +130,12 @@
                 
                 // 使用自建 Jitsi 服务器的 API（从 serverUrl 参数获取）
                 const script = document.createElement('script');
-                if (serverUrl) {
-                    // 使用自建服务器的 external_api.js
-                    const apiUrl = serverUrl.replace(/\/$/, '') + '/external_api.js';
-                    script.src = apiUrl;
-                    console.log('加载自建 Jitsi API:', apiUrl);
-                } else {
-                    // 如果没有提供 serverUrl，使用默认（但会被后面的检查拦截）
-                    script.src = 'https://8x8.vc/external_api.js';
+                if (!serverUrl) {
+                    reject(new Error('缺少 Jitsi 服务器地址'));
+                    return;
                 }
+                const apiUrl = serverUrl.replace(/\/$/, '') + '/external_api.js';
+                script.src = apiUrl;
                     script.onload = resolve;
                     script.onerror = () => reject(new Error('无法加载 Jitsi Meet API，请检查服务器地址'));
                     document.head.appendChild(script);
@@ -146,6 +144,7 @@
             
             // 初始化 Jitsi Meet
             async function initJitsiMeet() {
+            let hasJoined = false;
             try {
                 // 加载 Jitsi Meet API
                 await loadJitsiMeet();
@@ -182,18 +181,18 @@
                         transcription: { enabled: false },
                         // 禁用 Etherpad（可能包含外链）
                         etherpad: { enabled: false },
-                        // STUN 服务器配置（WebRTC NAT 穿透必需）
-                        p2p: {
-                            stunServers: [
-                                {
-                                    urls: 'stun:stun.l.google.com:19302'
-                                },
-                                {
-                                    urls: 'stun:stun1.l.google.com:19302'
-                                }
-                            ]
-                        },
+                        // 禁用所有外链 STUN/TURN；仅使用自建环境，不连接官网或第三方
+                        p2p: { stunServers: [] },
+                        // 禁用 Jitsi 前端日志输出
+                        apiLogLevels: ['error'],
+                        logging: { defaultLogLevel: 'error' },
+                        // 跳过 prejoin 页，点击视频通话后直接进入房间
+                        prejoinConfig: { enabled: false },
+                        // 彻底去除会议内 watermark.svg（config.js defaultLogoUrl）
+                        defaultLogoUrl: '',
                     },
+                    // WebSocket 配置（自建服务器必需）
+                    // 注意：websocket 参数需要在创建 API 实例前设置
                     interfaceConfigOverwrite: {
                         // 自定义界面配置 - 去品牌化
                         APP_NAME: '和平信使',
@@ -219,27 +218,47 @@
                         DISPLAY_WELCOME_PAGE_ADDITIONAL_CARD: false,
                         // 禁用移动应用推广
                         MOBILE_APP_PROMO: false,
-                        // 自定义 Logo（使用自定义路径）
-                        DEFAULT_WELCOME_PAGE_LOGO_URL: 'custom/logo.png',
+                        // 去除 watermark.svg，不显示任何 Logo
+                        DEFAULT_WELCOME_PAGE_LOGO_URL: '',
+                        DEFAULT_LOGO_URL: '',
                     },
+                    // 用户昵称作为会议显示名（优先 URL 参数，否则 JWT context.user.name）
+                    userInfo: displayName ? { displayName: displayName } : undefined,
                     // JWT Token（如果提供）
                     jwt: jwtToken || undefined,
                 };
                 
                 // 使用自建的 Jitsi 服务器（Docker 部署）
                 // 严禁使用官方服务器 meet.jit.si
-                // 提取域名（去掉协议和路径）
-                let domain = serverUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                // 提取服务器地址（去掉协议和路径）
+                let serverHost = serverUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
                 
                 // 安全检查：禁止使用官方域名
-                if (domain === 'meet.jit.si' || domain.includes('jit.si')) {
+                if (serverHost === 'meet.jit.si' || serverHost.includes('jit.si')) {
                     showError('禁止使用官方 Jitsi 服务器，必须使用自建服务器');
                     return;
                 }
                 
-                // 如果包含端口，保留端口
-                options.domain = domain;
-                console.log('使用自建 Jitsi 服务器:', domain);
+                // 完全使用自部署域名（apiurl.chat5202ol.xyz）
+                // domain 参数用于构建会议 URL，必须使用可解析的服务器域名
+                options.domain = serverHost;
+                
+                // hosts.domain 也使用自部署域名，确保客户端完全使用自部署服务器
+                if (!options.configOverwrite.hosts) {
+                    options.configOverwrite.hosts = {};
+                }
+                options.configOverwrite.hosts.domain = serverHost;
+                
+                // 配置 WebSocket 服务器地址（自建服务器必需）
+                // 格式：wss://server-host/xmpp-websocket
+                const wsProtocol = serverUrl.startsWith('https://') ? 'wss://' : 'ws://';
+                const websocketUrl = wsProtocol + serverHost + '/xmpp-websocket';
+                options.configOverwrite.websocket = websocketUrl;
+                
+                // 配置 BOSH 服务地址（备用，用于 WebSocket 不可用时）
+                options.configOverwrite.bosh = serverUrl.replace(/\/$/, '') + '/http-bind';
+                
+                // 已禁用 console 日志，此处不输出
                 
                 // 自建服务器支持 JWT 认证（必须）
                 if (!jwtToken) {
@@ -249,119 +268,66 @@
                 
                 options.jwt = jwtToken;
                 options.configOverwrite.enableJwt = true;
-                console.log('已启用 JWT 认证');
-                
-                console.log('初始化 Jitsi Meet，配置:', {
-                    roomName: options.roomName,
-                    domain: options.domain || 'meet.jit.si',
-                    hasJwt: !!options.jwt
-                });
                 
                 // 创建 Jitsi Meet 实例
+                // 第一个参数是 domain（实际服务器域名，用于构建连接 URL）
                 const api = new JitsiMeetExternalAPI(
-                    options.domain || 'meet.jit.si',
+                    options.domain,
                     options
                 );
                 
                 // 监听事件
-                api.addEventListener('videoConferenceJoined', (event) => {
-                    console.log('成功加入视频会议', event);
-                    
-                    // 重要：确保游客不会成为主持人
-                    // 如果 JWT token 中没有 moderator: true，则检查并移除主持人权限
+                api.addEventListener('videoConferenceJoined', () => {
+                    // 确保游客不会成为主持人（JWT moderator: false 时）
                     if (jwtToken) {
                         try {
-                            // 解析 JWT token 检查 moderator 字段
                             const tokenParts = jwtToken.split('.');
                             if (tokenParts.length === 3) {
                                 const payload = JSON.parse(atob(tokenParts[1]));
                                 const isModerator = payload?.context?.user?.moderator === true;
-                                
-                                console.log('JWT Token 中的 moderator 状态:', isModerator);
-                                
-                                // 如果不是主持人，确保移除主持人权限
                                 if (!isModerator) {
-                                    // 延迟执行，确保 Jitsi 完全初始化
                                     setTimeout(() => {
                                         try {
-                                            // 检查当前是否是主持人
-                                            api.isModerator().then((isMod) => {
-                                                if (isMod) {
-                                                    console.warn('警告：检测到游客被设为主持人！JWT token 中 moderator: false，但实际获得了主持人权限');
-                                                    console.warn('这可能是 Jitsi 服务器配置问题，需要检查 Prosody 配置');
-                                                } else {
-                                                    console.log('✓ 确认：游客不是主持人，符合预期');
-                                                }
-                                            }).catch(err => {
-                                                console.error('检查主持人状态失败:', err);
-                                            });
-                                        } catch (e) {
-                                            console.error('处理主持人权限时出错:', e);
-                                        }
+                                            api.isModerator().then((isMod) => { if (isMod) { /* 可在此处理异常主持人 */ } }).catch(() => {});
+                                        } catch (e) {}
                                     }, 2000);
                                 }
                             }
-                        } catch (e) {
-                            console.error('解析 JWT token 失败:', e);
-                        }
+                        } catch (e) {}
                     }
                 });
                 
-                api.addEventListener('videoConferenceLeft', () => {
-                    console.log('离开视频会议');
-                    // 可以选择关闭窗口或返回上一页
-                    // window.close();
-                });
+                api.addEventListener('videoConferenceLeft', () => {});
                 
                 api.addEventListener('readyToClose', () => {
-                    console.log('准备关闭');
+                    if (!hasJoined) {
+                        showError('连接失败或已断开，未成功加入会议');
+                        return;
+                    }
                     api.dispose();
+                    if (isEmbed && window.self !== window.top) {
+                        try {
+                            window.parent.postMessage({ type: 'jitsi-ready-to-close' }, '*');
+                        } catch (e) {}
+                        return;
+                    }
+                    if (window.opener && !window.opener.closed) {
+                        try { window.opener.focus(); } catch (e) {}
+                    }
                     window.close();
                 });
                 
-                api.addEventListener('participantJoined', (participant) => {
-                    console.log('参与者加入:', participant);
-                });
-                
-                // 监听主持人权限变化
-                api.addEventListener('moderatorChanged', (event) => {
-                    console.log('主持人权限变化:', event);
-                    // 如果游客被意外设为主持人，记录警告
-                    if (jwtToken) {
-                        try {
-                            const tokenParts = jwtToken.split('.');
-                            if (tokenParts.length === 3) {
-                                const payload = JSON.parse(atob(tokenParts[1]));
-                                const isModerator = payload?.context?.user?.moderator === true;
-                                if (!isModerator && event.moderator) {
-                                    console.warn('警告：游客被意外设为主持人！JWT token 中 moderator: false');
-                                    console.warn('这可能是 Jitsi 服务器配置问题，需要检查 Prosody 配置');
-                                }
-                            }
-                        } catch (e) {
-                            console.error('解析 JWT token 失败:', e);
-                        }
-                    }
-                });
-                
-                api.addEventListener('participantLeft', (participant) => {
-                    console.log('参与者离开:', participant);
-                });
-                
-                // 错误处理
+                api.addEventListener('participantJoined', () => {});
+                api.addEventListener('moderatorChanged', () => {});
+                api.addEventListener('participantLeft', () => {});
                 api.addEventListener('errorOccurred', (error) => {
-                    console.error('Jitsi Meet 错误:', error);
-                    if (error.error === 'conference.failed') {
+                    if (error && error.error === 'conference.failed') {
                         showError('无法连接到视频会议服务器，请检查网络连接或联系管理员');
                     }
                 });
                 
-                // 保存 API 实例到全局，以便调试
-                window.jitsiApi = api;
-                
             } catch (error) {
-                console.error('初始化 Jitsi Meet 失败:', error);
-                showError('初始化视频通话失败: ' + error.message);
+                showError('初始化视频通话失败: ' + (error && error.message ? error.message : '未知错误'));
             }
         }
         

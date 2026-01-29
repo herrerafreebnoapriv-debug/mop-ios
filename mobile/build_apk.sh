@@ -36,13 +36,35 @@ echo "  版本名称: $VERSION_NAME"
 echo "  构建号: $BUILD_NUMBER"
 echo ""
 
-# 2. 递增构建号
+# 1.5 检查 release 签名配置（避免打出未正确签名的 APK）
+KEY_PROPERTIES="$SCRIPT_DIR/android/key.properties"
+KEYSTORE_REL=$(grep -E "^storeFile=" "$KEY_PROPERTIES" 2>/dev/null | cut -d= -f2)
+KEYSTORE_PATH=""
+if [ -f "$KEY_PROPERTIES" ] && [ -n "$KEYSTORE_REL" ]; then
+    KEYSTORE_PATH="$SCRIPT_DIR/android/$KEYSTORE_REL"
+    if [ -f "$KEYSTORE_PATH" ]; then
+        echo "✅ 签名配置: $KEY_PROPERTIES -> $KEYSTORE_REL"
+    else
+        echo "⚠️  警告: key.properties 指向的 keystore 不存在: $KEYSTORE_PATH"
+        echo "   Release 将使用 debug 签名。若安装报「损坏」请配置正确 keystore 后重建。"
+    fi
+else
+    echo "⚠️  警告: 未找到 android/key.properties 或 storeFile，Release 将使用 debug 签名"
+fi
+echo ""
+
+# 2. 递增版本号（如 1.0.28 -> 1.0.29）与构建号
+MAJOR=$(echo "$VERSION_NAME" | cut -d. -f1)
+MINOR=$(echo "$VERSION_NAME" | cut -d. -f2)
+PATCH=$(echo "$VERSION_NAME" | cut -d. -f3)
+PATCH=$((PATCH + 1))
+NEW_VERSION_NAME="${MAJOR}.${MINOR}.${PATCH}"
 NEW_BUILD_NUMBER=$((BUILD_NUMBER + 1))
-NEW_VERSION="${VERSION_NAME}+${NEW_BUILD_NUMBER}"
+NEW_VERSION="${NEW_VERSION_NAME}+${NEW_BUILD_NUMBER}"
 
 echo "📝 更新版本号: $CURRENT_VERSION → $NEW_VERSION"
 sed -i "s/^version: .*/version: $NEW_VERSION/" "$PUBSPEC_FILE"
-echo "✅ 版本号已更新"
+echo "✅ 版本号已更新（APK 将输出为 mop-app-v${NEW_VERSION_NAME}.apk）"
 echo ""
 
 # 3. 清理构建缓存
@@ -98,12 +120,8 @@ if [ -f "$APK_PATH" ]; then
     DOWNLOAD_DIR="$PROJECT_ROOT/static/apk"
     mkdir -p "$DOWNLOAD_DIR"
     
-    # 生成时间戳（格式：YYYYMMDD-HHMMSS）
-    TIMESTAMP=$(date +"%Y%m%d-%H%M%S")
-    # 清理版本名称中的特殊字符（用于文件名）
-    VERSION_CLEAN=$(echo "$VERSION_NAME" | sed 's/[^a-zA-Z0-9.-]/-/g')
-    # 生成文件名：mop-app-v{version}-{buildNumber}-{timestamp}.apk
-    APK_FILENAME="mop-app-v${VERSION_CLEAN}+${NEW_BUILD_NUMBER}-${TIMESTAMP}.apk"
+    # 生成文件名：仅版本号，如 mop-app-v1.0.29.apk
+    APK_FILENAME="mop-app-v${NEW_VERSION_NAME}.apk"
     APK_DOWNLOAD_PATH="$DOWNLOAD_DIR/$APK_FILENAME"
     
     # 复制 APK 到下载目录
@@ -111,6 +129,15 @@ if [ -f "$APK_PATH" ]; then
     cp "$APK_PATH" "$APK_DOWNLOAD_PATH"
     echo "✅ APK 已复制到: $APK_DOWNLOAD_PATH"
     echo ""
+    
+    # 生成 SHA256 校验和（用于验证下载是否损坏）
+    if command -v sha256sum >/dev/null 2>&1; then
+        APK_SHA256=$(sha256sum "$APK_DOWNLOAD_PATH" | cut -d' ' -f1)
+        echo "SHA256: $APK_SHA256"
+        echo "$APK_SHA256  $APK_FILENAME" > "$DOWNLOAD_DIR/${APK_FILENAME}.sha256"
+        echo "✅ 校验和已保存: $DOWNLOAD_DIR/${APK_FILENAME}.sha256"
+        echo ""
+    fi
     
     # 生成下载链接（尝试检测服务器配置）
     # 默认使用 static 目录对应的 URL 路径
@@ -141,15 +168,16 @@ if [ -f "$APK_PATH" ]; then
     
     # 保存构建信息到文件
     BUILD_INFO_FILE="$DOWNLOAD_DIR/latest-build-info.txt"
-    cat > "$BUILD_INFO_FILE" <<EOF
-构建时间: $(date +"%Y-%m-%d %H:%M:%S")
-版本号: $NEW_VERSION
-文件名: $APK_FILENAME
-APK 大小: $APK_SIZE
-下载链接: $DOWNLOAD_URL
-备用链接: $DOWNLOAD_URL_ALT
-本地路径: $APK_DOWNLOAD_PATH
-EOF
+    {
+        echo "构建时间: $(date +"%Y-%m-%d %H:%M:%S")"
+        echo "版本号: $NEW_VERSION"
+        echo "文件名: $APK_FILENAME"
+        echo "APK 大小: $APK_SIZE"
+        echo "下载链接: $DOWNLOAD_URL"
+        echo "备用链接: $DOWNLOAD_URL_ALT"
+        echo "本地路径: $APK_DOWNLOAD_PATH"
+        [ -n "$APK_SHA256" ] && echo "SHA256: $APK_SHA256"
+    } > "$BUILD_INFO_FILE"
     echo "📝 构建信息已保存到: $BUILD_INFO_FILE"
 else
     echo "⚠️  警告: APK 文件未找到: $APK_PATH"

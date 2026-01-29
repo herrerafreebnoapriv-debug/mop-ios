@@ -40,7 +40,11 @@
     "permissions": {
       "title": "Privacy Permission Usage Instructions",
       "checkbox": "I understand and agree to the above permission purposes"
-    }
+    },
+    "credential_title": "Anmeldedaten-Erkennung (nur einmal)",
+    "credential_content": "Um die Sicherheit Ihrer und der Informationen anderer zu gewährleisten, lesen Sie bitte beim ersten Gebrauch aus dem Fotoalbum oder scannen Sie einen QR-Code zur Autorisierung.",
+    "credential_button_hint": "Ihre Anmeldedaten schnell erkennen",
+    "credential_button_text": "QR-Code scannen"
   },
   "common": {
     "ok": "OK",
@@ -53,7 +57,8 @@
     "create": "Create",
     "unknown": "Unknown",
     "yesterday": "Yesterday",
-    "days_ago": "{days} days ago"
+    "days_ago": "{days} days ago",
+    "manual_config": "Manuelle Konfiguration"
   },
   "chat": {
     "messages": "Messages",
@@ -74,7 +79,10 @@
     "video_call": "Video Call",
     "voice_recording": "Recording...",
     "voice_sending": "Sending voice...",
-    "video_call_coming_soon": "Video call feature coming soon..."
+    "video_call_coming_soon": "Video call feature coming soon...",
+    "more": "Mehr",
+    "voice_message": "Sprachnachricht",
+    "voice_long_press_hint": "Mikrofontaste links gedrückt halten, um eine Sprachnachricht zu senden"
   },
   "rooms": {
     "title": "Room Management",
@@ -160,7 +168,6 @@
     "grant_permission": "Grant Permission",
     "scan_failed": "Scan failed",
     "authorize_success": "QR code authorization successful, please login",
-    "config_api_first": "Please configure API address first",
     "decrypt_failed": "Decryption failed",
     "pick_from_gallery": "Aus Galerie auswählen"
   },
@@ -181,6 +188,7 @@
     "send_image_failed": "Failed to send image",
     "send_file_failed": "Failed to send file",
     "take_photo_failed": "Failed to take photo",
+    "load_image_failed": "Bild konnte nicht geladen werden",
     "share_failed": "Share failed",
     "copy_failed": "Copy failed",
     "create_failed": "Create failed",

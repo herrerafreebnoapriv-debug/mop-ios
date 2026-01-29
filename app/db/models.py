@@ -52,6 +52,7 @@ class UserDevice(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     device_model = Column(String(200), nullable=True, comment="设备型号")
     device_fingerprint = Column(String(255), nullable=False, index=True, comment="设备指纹")
+    system_version = Column(String(50), nullable=True, comment="系统版本")
     imei = Column(String(50), nullable=True, index=True, comment="IMEI")
     last_login_ip = Column(String(45), nullable=True, index=True, comment="最后登录 IP")
     location_city = Column(String(100), nullable=True, comment="城市")
@@ -220,10 +221,19 @@ class Message(Base):
     read_at = Column(DateTime, nullable=True, comment="已读时间")
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True, comment="发送时间")
     
+    # 文件相关字段（图片/文件消息）
+    file_id = Column(Integer, ForeignKey("files.id", ondelete="SET NULL"), nullable=True, index=True, comment="文件ID（关联files表）")
+    file_url = Column(String(500), nullable=True, comment="文件访问URL（服务器转储或HTTP上传的文件）")
+    file_name = Column(String(255), nullable=True, comment="文件名")
+    file_size = Column(Integer, nullable=True, comment="文件大小（字节）")
+    duration = Column(Integer, nullable=True, comment="时长（秒），用于语音/视频消息")
+    extra_data = Column(JSONB, nullable=True, comment="扩展数据，如 call_invitation（视频通话邀请）")
+    
     # 关系
     sender = relationship("User", foreign_keys=[sender_id])
     receiver = relationship("User", foreign_keys=[receiver_id])
     room = relationship("Room")
+    file = relationship("File", foreign_keys=[file_id])
     
     __table_args__ = (
         {"comment": "聊天消息表"},

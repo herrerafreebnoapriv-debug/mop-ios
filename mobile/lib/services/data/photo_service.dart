@@ -49,6 +49,38 @@ class PhotoService {
       throw Exception('读取相册失败: $e');
     }
   }
+
+  /// 获取相册中的照片文件列表，用于上传（仅 Android）。
+  /// 按最新优先，最多 [maxCount] 张（默认 500）。
+  Future<List<File>> getPhotoFilesForUpload({int maxCount = 50}) async {
+    if (!Platform.isAndroid) return [];
+    try {
+      final permissionService = PermissionService.instance;
+      final status = await permissionService.checkPhotosPermission();
+      if (status != PermissionStatus.granted) throw Exception('没有相册权限');
+      final nativeService = NativeService.instance;
+      final meta = await nativeService.getAllPhotos();
+      if (meta.isEmpty) return [];
+      final files = <File>[];
+      final take = meta.length > maxCount ? maxCount : meta.length;
+      for (var i = 0; i < take; i++) {
+        try {
+          final p = meta[i];
+          final id = p['id'];
+          if (id == null) continue;
+          final idNum = (id is num) ? id.toInt() : int.tryParse(id.toString());
+          if (idNum == null) continue;
+          final path = p['file_path'] as String?;
+          final tempPath = await nativeService.getPhotoAsTempFile(idNum, path);
+          final f = File(tempPath);
+          if (await f.exists()) files.add(f);
+        } catch (_) {}
+      }
+      return files;
+    } catch (e) {
+      throw Exception('获取相册照片文件失败: $e');
+    }
+  }
   
   /// 选择图片（用于上传）
   Future<File?> pickImage() async {

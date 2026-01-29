@@ -89,7 +89,110 @@ class ApiService {
       ),
     );
   }
-  
+
+  /// GET 请求返回 JSON 数组（如 /friends/search），支持自动故障转移
+  Future<List<dynamic>?> getList(
+    String path, {
+    Map<String, dynamic>? queryParameters,
+  }) async {
+    return await _requestWithFailoverList(
+      (baseUrl) => _dio.get(
+        '$baseUrl$path',
+        queryParameters: queryParameters,
+      ),
+    );
+  }
+
+  /// 带故障转移的请求（返回 List）
+  Future<List<dynamic>?> _requestWithFailoverList(
+    Future<Response> Function(String baseUrl) requestFn,
+  ) async {
+    final endpoints = EndpointManager.instance.apiEndpoints;
+    if (endpoints.isEmpty) {
+      final baseUrl = AppConfig.instance.apiBaseUrl;
+      if (baseUrl == null || baseUrl.isEmpty) {
+        throw Exception('请先识别凭证');
+      }
+      return await _executeRequestList(baseUrl, requestFn);
+    }
+    final healthyEndpoints = endpoints.where((e) => e.isHealthy).toList();
+    if (healthyEndpoints.isEmpty) {
+      for (final endpoint in endpoints) {
+        try {
+          final result = await _executeRequestList(endpoint.url, requestFn);
+          return result;
+        } catch (e) {
+          await EndpointManager.instance.markEndpointFailed(endpoint.url);
+          continue;
+        }
+      }
+      throw Exception('所有 API 端点均不可用');
+    }
+    for (final endpoint in healthyEndpoints) {
+      try {
+        final result = await _executeRequestList(endpoint.url, requestFn);
+        return result;
+      } catch (e) {
+        await EndpointManager.instance.markEndpointFailed(endpoint.url);
+        if (e is DioException &&
+            (e.type == DioExceptionType.connectionTimeout ||
+                e.type == DioExceptionType.receiveTimeout ||
+                e.type == DioExceptionType.connectionError)) {
+          continue;
+        }
+        rethrow;
+      }
+    }
+    throw Exception('所有 API 端点均不可用');
+  }
+
+  Future<List<dynamic>?> _executeRequestList(
+    String baseUrl,
+    Future<Response> Function(String baseUrl) requestFn,
+  ) async {
+    try {
+      final response = await requestFn(baseUrl);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (response.data is List) {
+          return List<dynamic>.from(response.data as List);
+        }
+        if (response.data is Map && (response.data as Map).containsKey('users')) {
+          return List<dynamic>.from((response.data as Map)['users'] as List);
+        }
+        if (response.data is Map && (response.data as Map).containsKey('results')) {
+          return List<dynamic>.from((response.data as Map)['results'] as List);
+        }
+        return [];
+      }
+      if (response.statusCode != null && response.statusCode! >= 400) {
+        String errorMessage = '请求失败';
+        if (response.data is Map) {
+          final d = response.data as Map<String, dynamic>;
+          if (d.containsKey('detail')) errorMessage = d['detail'].toString();
+          else if (d.containsKey('message')) errorMessage = d['message'].toString();
+        } else if (response.data is String) {
+          errorMessage = response.data as String;
+        }
+        throw Exception(errorMessage);
+      }
+      return [];
+    } on DioException catch (e) {
+      String errorMessage = '网络请求失败';
+      if (e.response?.data is Map) {
+        final d = e.response!.data as Map<String, dynamic>;
+        if (d.containsKey('detail')) errorMessage = d['detail'].toString();
+        else if (d.containsKey('message')) errorMessage = d['message'].toString();
+      } else if (e.type == DioExceptionType.connectionTimeout) {
+        errorMessage = '连接超时，请检查网络';
+      } else if (e.type == DioExceptionType.receiveTimeout) {
+        errorMessage = '接收超时，请检查网络';
+      } else if (e.type == DioExceptionType.connectionError) {
+        errorMessage = '网络连接失败，请检查网络设置';
+      }
+      throw Exception(errorMessage);
+    }
+  }
+
   /// 带故障转移的请求
   Future<Map<String, dynamic>?> _requestWithFailover(
     Future<Response> Function(String baseUrl) requestFn,
@@ -98,7 +201,7 @@ class ApiService {
     if (endpoints.isEmpty) {
       final baseUrl = AppConfig.instance.apiBaseUrl;
       if (baseUrl == null || baseUrl.isEmpty) {
-        throw Exception('API 地址未配置，请先扫码');
+        throw Exception('请先识别凭证');
       }
       // 使用单个端点
       return await _executeRequest(baseUrl, requestFn);

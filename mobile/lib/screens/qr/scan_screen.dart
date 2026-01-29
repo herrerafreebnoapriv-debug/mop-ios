@@ -6,11 +6,8 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:scan_snap/scan_snap.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/config/app_config.dart';
-import '../../core/services/endpoint_manager.dart';
-import '../../locales/app_localizations.dart';
 import '../../services/qr/qr_scanner_service.dart';
 import '../../services/qr/rsa_decrypt_service.dart';
 import '../../services/permission/permission_service.dart';
@@ -61,7 +58,6 @@ class _ScanScreenState extends State<ScanScreen> {
       } else {
         // 如果没有配置，尝试使用默认地址获取公钥（使用聊天接口域名）
         await AppConfig.instance.fetchRsaPublicKeyFromApi(
-          customApiUrl: 'https://log.chat5202ol.xyz/api/v1',
         );
       }
     }
@@ -79,174 +75,108 @@ class _ScanScreenState extends State<ScanScreen> {
   }
   
   /// 从相册选择图片并识别二维码
-  /// 显示 API 地址配置对话框
-  Future<void> _showApiConfigDialog() async {
-    final apiUrlController = TextEditingController(
-      text: AppConfig.instance.apiBaseUrl ?? 'https://log.chat5202ol.xyz',
-    );
-    final l10n = AppLocalizations.of(context);
-    
-    return showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n?.t('qr.manual_config') ?? '手动配置 API 地址'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              l10n?.t('qr.api_url_hint') ?? 
-              '请输入 API 服务器地址（例如：https://log.chat5202ol.xyz）',
-              style: const TextStyle(fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: apiUrlController,
-              decoration: InputDecoration(
-                labelText: l10n?.t('qr.api_url') ?? 'API 地址',
-                hintText: 'https://log.chat5202ol.xyz',
-                border: const OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.url,
-              autofocus: true,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(l10n?.t('common.cancel') ?? '取消'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final apiUrl = apiUrlController.text.trim();
-              if (apiUrl.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(l10n?.t('qr.api_url_required') ?? '请输入 API 地址'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-                return;
-              }
-              
-              // 确保 URL 格式正确
-              String finalUrl = apiUrl;
-              if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
-                finalUrl = 'https://$finalUrl';
-              }
-              
-              // 移除末尾的斜杠
-              finalUrl = finalUrl.replaceAll(RegExp(r'/$'), '');
-              
-              // 如果不是完整路径，添加 /api/v1
-              if (!finalUrl.contains('/api/v1')) {
-                finalUrl = '$finalUrl/api/v1';
-              }
-              
-              // 更新配置
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.setString('api_base_url', finalUrl);
-              await EndpointManager.instance.addApiEndpoint(finalUrl, priority: 0);
-              
-              // 加载配置
-              await AppConfig.instance.loadConfig();
-              
-              // 尝试获取 RSA 公钥
-              final fetched = await AppConfig.instance.fetchRsaPublicKeyFromApi(
-                customApiUrl: finalUrl,
-              );
-              
-              if (mounted) {
-                Navigator.of(context).pop();
-                
-                if (fetched) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        l10n?.t('qr.config_success') ?? 
-                        '配置成功！已获取 RSA 公钥，现在可以扫描二维码了',
-                      ),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                  setState(() {
-                    _errorMessage = null;
-                  });
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        l10n?.t('qr.config_partial') ?? 
-                        'API 地址已配置，但获取 RSA 公钥失败。请检查 API 地址是否正确',
-                      ),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                }
-              }
-            },
-            child: Text(l10n?.t('common.confirm') ?? '确认'),
-          ),
-        ],
-      ),
-    );
-  }
-  
   Future<void> _pickImageFromGallery() async {
+    // 防止重复点击
+    if (_isProcessing) {
+      return;
+    }
+    
+    // 设置处理状态，显示加载指示器
+    setState(() {
+      _isProcessing = true;
+      _errorMessage = null;
+    });
+    
     try {
-      // 直接尝试选择图片，image_picker 会自动处理权限
-      // 如果权限未授予，系统会自动弹出权限请求对话框
-      final ImagePicker picker = ImagePicker();
+      // 先检查并请求相册权限
+      // 注意：Android 13+ 的 image_picker 可能使用 Photo Picker API，不需要权限
+      // 但为了兼容性和更好的用户体验，我们仍然检查权限
+      final permissionService = PermissionService.instance;
+      var permissionStatus = await permissionService.checkPhotosPermission();
       
-      // 先尝试选择图片（image_picker 会处理权限）
+      // 如果权限未授予，尝试请求权限
+      // Android 13+ 使用 Photo Picker 时，即使没有权限也能选择图片
+      // 所以我们可以先尝试选择图片，如果失败再请求权限
+      if (permissionStatus != PermissionStatus.granted) {
+        // 先尝试请求权限
+        permissionStatus = await permissionService.requestPhotosPermission();
+      }
+      
+      // Android 13+ 使用 Photo Picker API 时，即使权限未授予也可能能选择图片
+      // 所以我们直接尝试选择图片，而不是因为权限未授予就阻止
+      
+      // 选择图片（image_picker 会处理权限和 Photo Picker）
+      final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.gallery,
         imageQuality: 100, // 保持原始质量，确保二维码清晰
       );
       
       if (image == null) {
-        // 用户取消了选择，或者权限被拒绝
-        // 检查是否是权限问题
-        final permissionService = PermissionService.instance;
-        final permissionStatus = await permissionService.checkPhotosPermission();
-        
-        if (permissionStatus != PermissionStatus.granted) {
+        // 用户取消了选择，或者选择失败
+        // 重新检查权限状态，看是否是权限问题
+        final currentStatus = await permissionService.checkPhotosPermission();
+        if (currentStatus == PermissionStatus.permanentlyDenied) {
           if (mounted) {
-            final l10n = AppLocalizations.of(context);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(l10n?.t('permission.photos_required') ?? '需要相册权限才能从相册识别二维码'),
+                content: const Text('需要相冊權限才能從相冊識別二維碼'),
                 backgroundColor: Colors.red,
                 action: SnackBarAction(
-                  label: l10n?.t('permission.go_to_settings') ?? '前往设置',
-                  onPressed: () {
-                    permissionService.openAppSettings();
+                  label: '前往設置',
+                  onPressed: () async {
+                    await permissionService.openAppSettings();
                   },
                 ),
               ),
             );
           }
         }
-        return; // 用户取消了选择
+        // 用户取消了选择，重置状态并返回（不显示错误）
+        if (mounted) {
+          setState(() {
+            _isProcessing = false;
+          });
+        }
+        return;
       }
-      
-      setState(() {
-        _isProcessing = true;
-        _errorMessage = null;
-      });
       
       // 使用 scan_snap 识别图片中的二维码
       try {
         // 检查图片文件是否存在
         final file = File(image.path);
         if (!await file.exists()) {
-          throw Exception('图片文件不存在');
+          if (mounted) {
+            setState(() {
+              _errorMessage = '圖片檔案不存在';
+              _isProcessing = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('圖片檔案不存在'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
         }
         
         // 检查文件大小，避免处理过大的文件
         final fileSize = await file.length();
         if (fileSize > 10 * 1024 * 1024) { // 10MB
-          throw Exception('图片文件过大，请选择较小的图片（建议小于10MB）');
+          if (mounted) {
+            setState(() {
+              _errorMessage = '圖片檔案過大，請選擇較小的圖片（建議小於10MB）';
+              _isProcessing = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('圖片檔案過大，請選擇較小的圖片（建議小於10MB）'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
         }
         
         // 使用 scan_snap 从图片文件识别二维码
@@ -254,82 +184,91 @@ class _ScanScreenState extends State<ScanScreen> {
         String? qrCodeValue;
         try {
           // scan_snap 的 Scan.parse 返回 Future<String?>，需要处理异常
+          // 缩短超时时间到5秒，避免长时间转圈
           final parseFuture = Scan.parse(image.path);
           qrCodeValue = await parseFuture.timeout(
-            const Duration(seconds: 10),
+            const Duration(seconds: 5),
             onTimeout: () {
-              debugPrint('scan_snap 识别超时');
+              debugPrint('scan_snap 识别超时（5秒）');
               return null; // 返回 null 表示超时
             },
           );
           
           // 如果返回 null（超时或识别失败），抛出异常
-          if (qrCodeValue == null) {
-            throw TimeoutException('二维码识别超时或失败，请确保图片清晰且包含二维码');
+          if (qrCodeValue == null || qrCodeValue.isEmpty) {
+            if (mounted) {
+              setState(() {
+                _errorMessage = '無法識別二維碼，請確保圖片清晰且包含完整的二維碼';
+                _isProcessing = false;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('無法識別二維碼，請確保圖片清晰且包含完整的二維碼'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+            return;
           }
         } catch (e) {
           // scan_snap 可能抛出异常，记录详细信息
           debugPrint('scan_snap 识别失败: $e (类型: ${e.runtimeType})');
           
-          // 重新抛出异常，让外层捕获并显示友好提示
-          if (e is TimeoutException) {
-            rethrow;
-          } else {
-            // 其他异常（如 PlatformException），提供更详细的错误信息
-            throw Exception('无法识别二维码：${e.toString()}。请确保图片清晰且包含二维码');
-          }
-        }
-        
-        if (qrCodeValue != null && qrCodeValue.isNotEmpty) {
-          // 创建 Barcode 对象（兼容 mobile_scanner 的 Barcode 类型）
-          // mobile_scanner 的 Barcode 只需要 rawValue
-          final barcode = Barcode(
-            rawValue: qrCodeValue,
-          );
-          
-          // 使用相同的处理逻辑
-          await _handleScanResult(barcode);
-        } else {
-          setState(() {
-            _isProcessing = false;
-            final l10n = AppLocalizations.of(context);
-            _errorMessage = l10n?.t('qr.scan_failed') ?? '未识别到二维码，请确保图片中包含清晰的二维码';
-          });
-          
           if (mounted) {
+            // 根據錯誤類型提供不同的提示
+            String errorMsg = '無法識別二維碼，請確保圖片清晰且二維碼完整';
+            if (e.toString().contains('timeout') || e.toString().contains('超時')) {
+              errorMsg = '識別超時，請選擇更清晰的二維碼圖片';
+            } else if (e.toString().contains('not found') || e.toString().contains('未找到')) {
+              errorMsg = '未找到二維碼，請確保圖片中包含完整的二維碼';
+            }
+            
+            setState(() {
+              _errorMessage = errorMsg;
+              _isProcessing = false;
+            });
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(_errorMessage!),
-                backgroundColor: Colors.orange,
-                duration: const Duration(seconds: 3),
+                content: Text(errorMsg),
+                backgroundColor: Colors.red,
               ),
             );
           }
+          return;
         }
+        
+        // 创建 Barcode 对象（兼容 mobile_scanner 的 Barcode 类型）
+        // mobile_scanner 的 Barcode 只需要 rawValue
+        final barcode = Barcode(
+          rawValue: qrCodeValue!,
+        );
+        
+        // 使用相同的处理逻辑
+        // 传入 forceProcess=true 以跳过重复检查（因为我们已经设置了 _isProcessing = true）
+        await _handleScanResult(barcode, forceProcess: true);
       } catch (e) {
-        setState(() {
-          _isProcessing = false;
-          final l10n = AppLocalizations.of(context);
-          // 提供更详细的错误信息
-          String errorMsg = l10n?.t('qr.scan_failed') ?? '识别失败';
+        if (mounted) {
+          String errorMsg = '識別失敗';
           if (e is TimeoutException) {
-            errorMsg = e.message ?? '识别超时';
+            errorMsg = e.message ?? '識別超時';
           } else if (e.toString().contains('PlatformException') || e.toString().contains('MethodChannel')) {
-            errorMsg = '${l10n?.t('qr.scan_failed') ?? '识别失败'}：无法访问图片文件，请检查权限设置';
+            errorMsg = '識別失敗：無法存取圖片檔案，請檢查權限設置';
           } else if (e.toString().contains('FileSystemException') || e.toString().contains('不存在')) {
-            errorMsg = '${l10n?.t('qr.scan_failed') ?? '识别失败'}：图片文件无法访问';
-          } else if (e.toString().contains('过大')) {
+            errorMsg = '識別失敗：圖片檔案無法存取';
+          } else if (e.toString().contains('過大')) {
             errorMsg = e.toString();
           } else {
-            errorMsg = '${l10n?.t('qr.scan_failed') ?? '识别失败'}：${e.toString()}';
+            errorMsg = '識別失敗：${e.toString()}';
           }
-          _errorMessage = errorMsg;
-        });
-        
-        if (mounted) {
+          
+          setState(() {
+            _errorMessage = errorMsg;
+            _isProcessing = false;
+          });
+          
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(_errorMessage!),
+              content: Text(errorMsg),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 4),
             ),
@@ -337,15 +276,16 @@ class _ScanScreenState extends State<ScanScreen> {
         }
       }
     } catch (e) {
-      setState(() {
-        _isProcessing = false;
-        _errorMessage = e.toString();
-      });
-      
+      // 外层异常（选择图片失败等）
       if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isProcessing = false;
+        });
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${AppLocalizations.of(context)?.t('qr.scan_failed') ?? '选择图片失败'}: $e'),
+            content: Text('選擇圖片失敗: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -353,13 +293,23 @@ class _ScanScreenState extends State<ScanScreen> {
     }
   }
   
-  Future<void> _handleScanResult(Barcode barcode) async {
-    if (_isProcessing) return;
+  Future<void> _handleScanResult(Barcode barcode, {bool forceProcess = false}) async {
+    // 如果已经在处理中且不是强制处理，则忽略（防止相机重复扫描）
+    // 从相册调用时传入 forceProcess=true 可以强制处理
+    if (_isProcessing && !forceProcess) return;
     
-    setState(() {
-      _isProcessing = true;
-      _errorMessage = null;
-    });
+    // 如果已经设置了 _isProcessing（比如从相册调用），就不再重复设置
+    if (!_isProcessing) {
+      setState(() {
+        _isProcessing = true;
+        _errorMessage = null;
+      });
+    } else {
+      // 只清除错误信息
+      setState(() {
+        _errorMessage = null;
+      });
+    }
     
     try {
       // 获取 RSA 公钥（优先使用传入的，否则从配置获取）
@@ -382,37 +332,42 @@ class _ScanScreenState extends State<ScanScreen> {
         publicKeyPem: publicKeyPem,
       );
       
+      // 成功处理，停止转圈
       if (mounted) {
-        // 如果用于登录，使用扫码授权登录
+        setState(() {
+          _isProcessing = false;
+        });
+        
+        // 如果用於登錄，使用掃碼授權登錄
         if (widget.isForLogin) {
-          // 扫码授权：更新 API 地址后，返回登录页面让用户登录
-          // API 地址已经在 processScanResult 中更新到 AppConfig
-          final l10n = AppLocalizations.of(context);
+          // 掃碼授權：更新 API 地址後，返回登錄頁面讓用戶登錄
+          // API 地址已經在 processScanResult 中更新到 AppConfig
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(l10n?.t('qr.authorize_success') ?? '扫码授权成功，请登录'),
+            const SnackBar(
+              content: Text('掃碼授權成功，請登錄'),
               backgroundColor: Colors.green,
             ),
           );
-          // 返回上一页（登录页面）
-          Navigator.of(context).pop(true); // 返回 true 表示授权成功
+          // 返回上一頁（登錄頁面）
+          // 確保配置已刷新（重新載入配置）
+          await AppConfig.instance.loadConfig();
+          Navigator.of(context).pop(true); // 返回 true 表示授權成功
         } else {
-          // 配置成功，返回上一页
+          // 配置成功，返回上一頁
           Navigator.of(context).pop(data);
         }
       }
     } on MissingPublicKeyException catch (e) {
-      // 检测到加密二维码但缺少公钥
+      // 檢測到加密二維碼但缺少公鑰
       setState(() {
-        final l10n = AppLocalizations.of(context);
-        _errorMessage = '${e.message}。${l10n?.t('qr.config_api_first') ?? '请先配置 API 地址'}。';
+        _errorMessage = '為保障您和他人的資訊安全，首次使用請從相冊讀取或掃描二維碼授權。';
         _isProcessing = false;
       });
       
-      // 尝试再次获取公钥
+      // 嘗試再次獲取公鑰
       final fetched = await AppConfig.instance.fetchRsaPublicKeyFromApi();
       if (fetched && mounted) {
-        // 如果获取成功，自动重试扫描
+        // 如果獲取成功，自動重試掃描
         final newPublicKey = AppConfig.instance.rsaPublicKey;
         if (newPublicKey != null && newPublicKey.isNotEmpty) {
           try {
@@ -421,27 +376,43 @@ class _ScanScreenState extends State<ScanScreen> {
               publicKeyPem: newPublicKey,
             );
             if (mounted) {
+              // 停止相机扫描（防止黑屏）
+              try {
+                await _controller?.stop();
+              } catch (e) {
+                // 忽略停止错误
+              }
+              
               if (widget.isForLogin) {
-                // 扫码授权成功
-                final l10n = AppLocalizations.of(context);
+                // 掃碼授權成功
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(l10n?.t('qr.authorize_success') ?? '扫码授权成功，请登录'),
+                  const SnackBar(
+                    content: Text('掃碼授權成功，請登錄'),
                     backgroundColor: Colors.green,
                   ),
                 );
-                // 返回上一页（登录页面）
-                Navigator.of(context).pop(true); // 返回 true 表示授权成功
+                // 返回上一頁（登錄頁面）
+                // 確保配置已刷新（重新載入配置）
+                await AppConfig.instance.loadConfig();
+                // 延迟一下确保相机完全停止
+                await Future.delayed(const Duration(milliseconds: 100));
+                if (mounted) {
+                  Navigator.of(context).pop(true); // 返回 true 表示授權成功
+                }
               } else {
-                Navigator.of(context).pop(data);
+                // 延迟一下确保相机完全停止
+                await Future.delayed(const Duration(milliseconds: 100));
+                if (mounted) {
+                  Navigator.of(context).pop(data);
+                }
               }
             }
             return;
           } catch (e2) {
-            // 重试失败，显示错误
+            // 重試失敗，顯示錯誤
             setState(() {
-              final l10n = AppLocalizations.of(context);
-            _errorMessage = '${l10n?.t('qr.decrypt_failed') ?? '解密失败'}: $e2';
+              _errorMessage = '解密失敗: $e2';
+              _isProcessing = false; // 確保重置狀態
             });
           }
         }
@@ -450,7 +421,7 @@ class _ScanScreenState extends State<ScanScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(_errorMessage ?? (AppLocalizations.of(context)?.t('qr.scan_failed') ?? '扫描失败')),
+            content: Text(_errorMessage ?? '掃描失敗'),
             backgroundColor: Colors.red,
           ),
         );
@@ -464,7 +435,7 @@ class _ScanScreenState extends State<ScanScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${AppLocalizations.of(context)?.t('qr.scan_failed') ?? '扫描失败'}: $e'),
+            content: Text('掃描失敗: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -483,19 +454,13 @@ class _ScanScreenState extends State<ScanScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.isForLogin 
-            ? (AppLocalizations.of(context)?.t('qr.scan_authorize') ?? '扫码授权')
-            : (AppLocalizations.of(context)?.t('qr.scan') ?? '扫描二维码')),
+            ? '掃碼授權'
+            : '掃描二維碼'),
         actions: [
-          // 手动配置 API 地址按钮
-          IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: AppLocalizations.of(context)?.t('qr.manual_config') ?? '手动配置 API 地址',
-            onPressed: _isProcessing ? null : _showApiConfigDialog,
-          ),
-          // 从相册识别二维码按钮
+          // 從相冊識別二維碼按鈕
           IconButton(
             icon: const Icon(Icons.photo_library),
-            tooltip: AppLocalizations.of(context)?.t('qr.pick_from_gallery') ?? '从相册选择',
+            tooltip: '從相冊選擇',
             onPressed: _isProcessing ? null : _pickImageFromGallery,
           ),
         ],
@@ -543,9 +508,9 @@ class _ScanScreenState extends State<ScanScreen> {
                         color: Colors.black54,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(
-                        AppLocalizations.of(context)?.t('qr.align_qr') ?? '请将二维码对准扫描框',
-                        style: const TextStyle(
+                      child: const Text(
+                        '請將二維碼對準掃描框',
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                         ),
@@ -574,27 +539,6 @@ class _ScanScreenState extends State<ScanScreen> {
                             style: const TextStyle(color: Colors.white),
                             textAlign: TextAlign.center,
                           ),
-                          // 如果是因为缺少公钥或 API 地址，显示手动配置按钮
-                          if (_errorMessage!.contains('RSA公钥') || 
-                              _errorMessage!.contains('API地址') ||
-                              _errorMessage!.contains('api地址') ||
-                              _errorMessage!.contains('无法解密'))
-                            Padding(
-                              padding: const EdgeInsets.only(top: 12),
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  _showApiConfigDialog();
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.white,
-                                  foregroundColor: Colors.red,
-                                ),
-                                child: Text(
-                                  AppLocalizations.of(context)?.t('qr.manual_config') ?? 
-                                  '手动配置 API 地址',
-                                ),
-                              ),
-                            ),
                         ],
                       ),
                     ),
@@ -617,7 +561,7 @@ class _ScanScreenState extends State<ScanScreen> {
                     color: Colors.grey,
                   ),
                   const SizedBox(height: 16),
-                  Text(AppLocalizations.of(context)?.t('qr.camera_permission_required') ?? '需要相机权限才能扫描二维码'),
+                  const Text('需要相機權限才能掃描二維碼'),
                   const SizedBox(height: 24),
                   ElevatedButton(
                     onPressed: () async {
@@ -630,7 +574,7 @@ class _ScanScreenState extends State<ScanScreen> {
                         _initScanner();
                       }
                     },
-                    child: Text(AppLocalizations.of(context)?.t('qr.grant_permission') ?? '授予权限'),
+                    child: const Text('授予權限'),
                   ),
                 ],
               ),

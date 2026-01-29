@@ -23,6 +23,44 @@ class SocketProvider extends ChangeNotifier {
   bool get isConnected => _isConnected;
   IO.Socket? get socket => _socket;
   String? get errorMessage => _errorMessage;
+
+  String? _lastSystemMessage;
+  DateTime? _lastSystemMessageAt;
+  String? get lastSystemMessage => _lastSystemMessage;
+  DateTime? get lastSystemMessageAt => _lastSystemMessageAt;
+
+  Map<String, dynamic>? _lastCallInvitation;
+  DateTime? _lastCallInvitationAt;
+  Map<String, dynamic>? get lastCallInvitation => _lastCallInvitation;
+  DateTime? get lastCallInvitationAt => _lastCallInvitationAt;
+
+  /// 全局 message 流（重连后仍会推送，供聊天页/列表消费）
+  final StreamController<Map<String, dynamic>> _messageStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get messageStream => _messageStreamController.stream;
+
+  /// 全局 message_read 流（已读回执）
+  final StreamController<Map<String, dynamic>> _messageReadStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get messageReadStream => _messageReadStreamController.stream;
+
+  /// 主叫收到「邀请已发送」确认时推送（含 system_message 时主叫可写入聊天列表）
+  final StreamController<Map<String, dynamic>> _callInvitationSentStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get callInvitationSentStream =>
+      _callInvitationSentStreamController.stream;
+
+  void clearLastSystemMessage() {
+    _lastSystemMessage = null;
+    _lastSystemMessageAt = null;
+    notifyListeners();
+  }
+
+  void clearLastCallInvitation() {
+    _lastCallInvitation = null;
+    _lastCallInvitationAt = null;
+    notifyListeners();
+  }
   
   SocketProvider() {
     _initNetworkListener();
@@ -104,7 +142,11 @@ class SocketProvider extends ChangeNotifier {
   
   /// 设置事件处理器
   void _setupEventHandlers() {
-    if (_socket == null) return;
+    if (_socket == null) {
+      debugPrint('⚠️ _setupEventHandlers: socket 为 null');
+      return;
+    }
+    debugPrint('🔧 设置 Socket 事件监听器...');
     
     _socket!.onConnect((_) {
       _isConnected = true;
@@ -112,7 +154,13 @@ class SocketProvider extends ChangeNotifier {
       _reconnectAttempts = 0;
       _errorMessage = null;
       _reconnectTimer?.cancel();
+      debugPrint('✅ Socket 已连接，事件监听器已设置');
       notifyListeners();
+    });
+    
+    // 监听连接成功确认
+    _socket!.on('connected', (data) {
+      debugPrint('✅ 收到服务器连接确认: $data');
     });
     
     _socket!.onDisconnect((_) {
@@ -155,6 +203,68 @@ class SocketProvider extends ChangeNotifier {
     _socket!.onReconnectError((error) {
       _errorMessage = '重连失败: $error';
       notifyListeners();
+    });
+
+    _socket!.on('system_message', (data) {
+      if (data is Map && data['message'] != null) {
+        _lastSystemMessage = data['message'].toString();
+        _lastSystemMessageAt = DateTime.now();
+        notifyListeners();
+      }
+    });
+
+    _socket!.on('call_invitation', (data) {
+      debugPrint('📞 [Socket] 收到 call_invitation 事件: data=$data, type=${data.runtimeType}');
+      if (data != null && data is Map) {
+        final payload = Map<String, dynamic>.from(data as Map);
+        _lastCallInvitation = payload;
+        _lastCallInvitationAt = DateTime.now();
+        debugPrint('📞 [Socket] 已设置 lastCallInvitation: room_id=${_lastCallInvitation?['room_id']}, caller_name=${_lastCallInvitation?['caller_name']}');
+        notifyListeners();
+        Future.microtask(() => notifyListeners());
+        // 被叫：同一条「带接受/拒绝」的系统消息推入 messageStream，聊天页可写入
+        final sysMsg = payload['system_message'];
+        if (sysMsg != null && sysMsg is Map && !_messageStreamController.isClosed) {
+          _messageStreamController.add(Map<String, dynamic>.from(sysMsg as Map));
+          debugPrint('📞 [Socket] 已把 call_invitation 内 system_message 推入 messageStream');
+        }
+      } else {
+        debugPrint('⚠️ [Socket] call_invitation 数据格式错误: ${data.runtimeType}');
+      }
+    });
+
+    // 统一监听 message，推入流；重连后新 socket 会再次注册，不丢失
+    // 兼容 Map 任意泛型（Socket 可能返回 Map<dynamic, dynamic> 等）
+    _socket!.on('message', (data) {
+      if (data != null && data is Map) {
+        final payload = Map<String, dynamic>.from(data as Map);
+        debugPrint('📨 [Socket] 收到 message: type=${payload['message_type']}, id=${payload['id']}');
+        if (!_messageStreamController.isClosed) {
+          _messageStreamController.add(payload);
+        }
+      } else {
+        debugPrint('⚠️ [Socket] message 数据格式错误: ${data.runtimeType}');
+      }
+    });
+
+    // 统一监听 message_read，推入流
+    _socket!.on('message_read', (data) {
+      if (data != null && data is Map) {
+        final payload = Map<String, dynamic>.from(data as Map);
+        if (!_messageReadStreamController.isClosed) {
+          _messageReadStreamController.add(payload);
+        }
+      }
+    });
+
+    // 主叫收到邀请已发送确认（可携带 system_message 供主叫写入聊天）
+    _socket!.on('call_invitation_sent', (data) {
+      if (data != null && data is Map) {
+        final payload = Map<String, dynamic>.from(data as Map);
+        if (!_callInvitationSentStreamController.isClosed) {
+          _callInvitationSentStreamController.add(payload);
+        }
+      }
     });
   }
   
@@ -290,18 +400,23 @@ class SocketProvider extends ChangeNotifier {
   /// 发送事件消息
   void sendEvent(String event, Map<String, dynamic> data) {
     if (_socket != null && _isConnected) {
+      debugPrint('📤 发送 Socket 事件: $event, data: $data');
       _socket!.emit(event, data);
+    } else {
+      debugPrint('⚠️ 无法发送事件 $event: socket=${_socket != null}, connected=$_isConnected');
     }
   }
   
   /// 发送聊天消息（参照网页端：socket.emit('send_message', data)）
-  /// 网页端格式：{message, type, target_user_id 或 room_id}
+  /// 网页端格式：{message, type, target_user_id 或 room_id, file_id 或 file_url}
   void sendMessage({
     int? receiverId,
     int? roomId,
     required String message,
     String messageType = 'text',
     int? fileId,
+    String? fileUrl,
+    String? fileName,
   }) {
     if (_socket != null && _isConnected) {
       // 参照网页端格式：使用 target_user_id（点对点）或 room_id（群聊）
@@ -316,8 +431,14 @@ class SocketProvider extends ChangeNotifier {
         data['target_user_id'] = receiverId;
       }
       
+      // 文件消息：优先使用 file_id（语音/文件），否则使用 file_url（图片）
       if (fileId != null) {
         data['file_id'] = fileId;
+      } else if (fileUrl != null && fileUrl.isNotEmpty) {
+        data['file_url'] = fileUrl;
+        if (fileName != null && fileName.isNotEmpty) {
+          data['file_name'] = fileName;
+        }
       }
       
       _socket!.emit('send_message', data);
@@ -337,8 +458,11 @@ class SocketProvider extends ChangeNotifier {
   StreamSubscription? onMessage(Function(Map<String, dynamic>) callback) {
     if (_socket != null) {
       _socket!.on('message', (data) {
+        debugPrint('📨 收到 message 事件: type=${data is Map ? data['message_type'] : 'unknown'}, id=${data is Map ? data['id'] : 'unknown'}');
         if (data is Map<String, dynamic>) {
           callback(data);
+        } else {
+          debugPrint('⚠️ message 数据格式错误: ${data.runtimeType}');
         }
       });
     }
@@ -376,6 +500,9 @@ class SocketProvider extends ChangeNotifier {
   @override
   void dispose() {
     disconnect();
+    if (!_messageStreamController.isClosed) _messageStreamController.close();
+    if (!_messageReadStreamController.isClosed) _messageReadStreamController.close();
+    if (!_callInvitationSentStreamController.isClosed) _callInvitationSentStreamController.close();
     NetworkService.instance.onNetworkStatusChanged = null;
     super.dispose();
   }

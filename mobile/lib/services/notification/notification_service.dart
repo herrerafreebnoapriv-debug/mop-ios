@@ -80,7 +80,7 @@ class NotificationService {
     }
     
     try {
-      // Android 通知详情
+      // Android 通知详情（支持全屏意图，用于视频通话来电）
       const androidDetails = AndroidNotificationDetails(
         'call_channel',
         '通话通知',
@@ -90,6 +90,8 @@ class NotificationService {
         showWhen: true,
         enableVibration: true,
         playSound: true,
+        fullScreenIntent: true,  // 启用全屏意图（来电时全屏显示，即使手机锁屏）
+        category: AndroidNotificationCategory.call,  // 设置为通话类别
       );
       
       // iOS 通知详情

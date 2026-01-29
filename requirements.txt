@@ -47,3 +47,4 @@ pytest==8.3.4
 pytest-asyncio==0.24.0
 black==24.10.0
 flake8==7.1.1
+watchdog==6.0.0  # 文件监控，用于自动重启后端

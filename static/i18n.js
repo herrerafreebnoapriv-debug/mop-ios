@@ -23,7 +23,6 @@ async function initI18n() {
     const loaded = await loadTranslations(currentLanguage);
     
     if (!loaded) {
-        console.warn('Failed to load translations, using fallback');
     }
     
     // 更新页面文本（由调用者负责）
@@ -86,7 +85,6 @@ async function loadTranslations(lang) {
         }
         // 回退到繁体中文（默认语言）
         if (lang !== 'zh_TW') {
-            console.warn(`Translation for ${lang} not found, falling back to zh_TW`);
             return await loadTranslations('zh_TW');
         }
         // 如果连默认语言都加载失败，使用空对象
@@ -115,7 +113,6 @@ async function loadTranslations(lang) {
 function t(key, params = {}) {
     // 如果翻译资源为空，返回键本身（避免显示空字符串）
     if (!translations || Object.keys(translations).length === 0) {
-        console.warn('Translations not loaded, key:', key);
         return key;
     }
     
@@ -126,13 +123,11 @@ function t(key, params = {}) {
         if (value && typeof value === 'object' && k in value) {
             value = value[k];
         } else {
-            console.warn('Translation key not found:', key);
             return key; // 返回键本身
         }
     }
     
     if (typeof value !== 'string') {
-        console.warn('Translation value is not a string:', key, value);
         return key;
     }
     
@@ -151,7 +146,6 @@ async function switchLanguage(lang) {
     const loaded = await loadTranslations(lang);
     
     if (!loaded) {
-        console.warn('Failed to load translations for', lang);
     }
     
     // 更新页面文本（由调用者负责）

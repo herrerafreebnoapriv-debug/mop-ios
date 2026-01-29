@@ -1,7 +1,4 @@
-// Jitsi Meet 配置 - 去除外链
-// 此文件会在容器启动时自动合并到 /config/config.js
-
-var config = {};
+// Jitsi Meet 配置 - 去除外链（追加到 /config/config.js，勿覆盖 var config）
 
 // 禁用所有可能包含外链的功能
 config.disableInviteFunctions = true;
@@ -18,28 +15,16 @@ config.etherpad = { enabled: false };
 // 禁用分析（可能包含外链）
 config.analytics = {};
 
-// STUN 服务器配置（WebRTC NAT 穿透必需）
-// 使用公共 STUN 服务器或自建
-config.p2p = {
-    stunServers: [
-        {
-            urls: 'stun:stun.l.google.com:19302'
-        },
-        {
-            urls: 'stun:stun1.l.google.com:19302'
-        }
-    ]
-};
-
-// 如果使用 TURN 服务器（可选，用于更复杂的 NAT 环境）
-// config.iceServers = [
-//     {
-//         urls: 'turn:your-turn-server.com:3478',
-//         username: 'username',
-//         credential: 'password'
-//     }
-// ];
+// 禁用所有外链 STUN/TURN，仅使用自建环境
+config.p2p = { stunServers: [] };
 
 // 其他配置
 config.enableJwt = true;
 config.enableWelcomePage = false;
+
+// 彻底去除会议内 watermark.svg（房间左上角 logo）
+config.defaultLogoUrl = '';
+
+// 完全使用自部署域名（由前端动态设置，此处仅作说明）
+// 注意：hosts.domain 由前端 room.html 动态设置为实际服务器域名
+// Prosody 内部仍使用 meet.jitsi 作为 XMPP 域名，但客户端通过实际域名连接

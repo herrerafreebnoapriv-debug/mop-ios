@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天功能测试工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        .test-item {
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 4px solid #ddd;
+            background: #f9f9f9;
+        }
+        .test-item.pass {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+        .test-item.fail {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .test-item.warn {
+            border-left-color: #ffc107;
+            background: #fff3cd;
+        }
+        .test-item code {
+            background: rgba(0,0,0,0.05);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #5568d3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        .result.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .result.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 聊天功能测试工具</h1>
+    
+    <div class="test-section">
+        <h2>1. 组件加载检查</h2>
+        <div id="component-check"></div>
+        <button class="btn" onclick="checkComponents()">检查组件</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. HTML 元素检查</h2>
+        <div id="element-check"></div>
+        <button class="btn" onclick="checkElements()">检查元素</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. 功能方法检查</h2>
+        <div id="method-check"></div>
+        <button class="btn" onclick="checkMethods()">检查方法</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. Socket.io 连接检查</h2>
+        <div id="socket-check"></div>
+        <button class="btn" onclick="checkSocket()">检查连接</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>5. API 端点检查</h2>
+        <div id="api-check"></div>
+        <button class="btn" onclick="checkAPI()">检查 API</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>6. 完整测试报告</h2>
+        <button class="btn" onclick="runAllTests()">运行全部测试</button>
+        <div id="full-report"></div>
+    </div>
+
+    <script>
+        // 加载聊天页面脚本（用于测试）
+        const scripts = [
+            '/static/socket.io.min.js',
+            '/static/chat-core.js',
+            '/static/chat-image.js',
+            '/static/chat-image-loader.js',
+            '/static/chat-file-dump.js',
+            '/static/chat-ui.js',
+            '/static/chat-messages-list.js',
+            '/static/chat-messages-window.js',
+            '/static/chat-messages.js',
+            '/static/chat-friends.js',
+            '/static/chat-settings.js',
+            '/static/chat-calls.js',
+            '/static/chat-media.js',
+            '/static/chat-image-viewer.js'
+        ];
+
+        let scriptsLoaded = 0;
+        scripts.forEach(src => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = () => {
+                scriptsLoaded++;
+                if (scriptsLoaded === scripts.length) {
+                }
+            };
+            script.onerror = () => {
+                console.error('脚本加载失败:', src);
+            };
+            document.head.appendChild(script);
+        });
+
+        function checkComponents() {
+            const required = [
+                'ChatCore', 'ChatMessages', 'ChatUI', 'ChatFriends',
+                'ChatSettings', 'ChatCalls', 'ChatMedia', 'ChatImageViewer',
+                'FileDump', 'ChatMessagesList', 'ChatMessagesWindow',
+                'ImageLoader', 'ImageModule'
+            ];
+            
+            const results = required.map(name => {
+                const exists = typeof window[name] !== 'undefined';
+                return {
+                    name,
+                    exists,
+                    status: exists ? 'pass' : 'fail'
+                };
+            });
+            
+            displayResults('component-check', results, '组件');
+        }
+
+        function checkElements() {
+            const required = [
+                'chat-window', 'message-list', 'friend-list', 'settings-page',
+                'chat-input', 'chat-send-btn', 'chat-messages-container',
+                'add-friend-modal', 'change-password-modal', 'call-invitation-modal',
+                'image-viewer-modal'
+            ];
+            
+            const results = required.map(id => {
+                const element = document.getElementById(id);
+                const exists = element !== null;
+                return {
+                    name: id,
+                    exists,
+                    status: exists ? 'pass' : 'fail'
+                };
+            });
+            
+            displayResults('element-check', results, '元素');
+        }
+
+        function checkMethods() {
+            const methods = [
+                { obj: 'ChatCore', methods: ['init', 'getToken', 'getSocket', 'getCurrentUser'] },
+                { obj: 'ChatMessages', methods: ['loadMessages', 'send', 'openChat', 'close'] },
+                { obj: 'ChatUI', methods: ['switchPage', 'toggleSearch'] },
+                { obj: 'ChatFriends', methods: ['loadFriends', 'showAddModal', 'closeAddModal'] },
+                { obj: 'ChatSettings', methods: ['loadSettings', 'showChangePasswordModal'] },
+                { obj: 'FileDump', methods: ['sendFileWithDump'] },
+                { obj: 'ImageLoader', methods: ['handleThumbnailClick', 'getCachedOriginalUrl'] }
+            ];
+            
+            const results = [];
+            methods.forEach(({ obj, methods: methodList }) => {
+                if (typeof window[obj] === 'undefined') {
+                    results.push({ name: `${obj} (未定义)`, exists: false, status: 'fail' });
+                    return;
+                }
+                methodList.forEach(method => {
+                    const exists = typeof window[obj][method] === 'function';
+                    results.push({
+                        name: `${obj}.${method}`,
+                        exists,
+                        status: exists ? 'pass' : 'fail'
+                    });
+                });
+            });
+            
+            displayResults('method-check', results, '方法');
+        }
+
+        function checkSocket() {
+            const results = [];
+            
+            // 检查 Socket.io
+            const ioExists = typeof io !== 'undefined';
+            results.push({
+                name: 'Socket.io (io)',
+                exists: ioExists,
+                status: ioExists ? 'pass' : 'fail'
+            });
+            
+            // 检查 ChatCore
+            if (window.ChatCore) {
+                const socket = window.ChatCore.getSocket();
+                results.push({
+                    name: 'ChatCore.getSocket()',
+                    exists: socket !== null,
+                    status: socket !== null ? 'pass' : 'warn',
+                    detail: socket ? `已连接: ${socket.connected}` : '未连接'
+                });
+            }
+            
+            displayResults('socket-check', results, 'Socket');
+        }
+
+        async function checkAPI() {
+            const results = [];
+            const apiBase = '/api/v1';
+            const token = localStorage.getItem('access_token');
+            
+            if (!token) {
+                results.push({
+                    name: 'Token 检查',
+                    exists: false,
+                    status: 'warn',
+                    detail: '未登录，部分 API 测试将跳过'
+                });
+            }
+            
+            // 测试 API 端点（需要 token）
+            const endpoints = [
+                { path: '/auth/me', name: '用户信息' },
+                { path: '/chat/conversations', name: '会话列表' },
+                { path: '/friends/list', name: '好友列表' }
+            ];
+            
+            for (const endpoint of endpoints) {
+                if (!token) {
+                    results.push({
+                        name: `${endpoint.name} (${endpoint.path})`,
+                        exists: false,
+                        status: 'warn',
+                        detail: '需要登录'
+                    });
+                    continue;
+                }
+                
+                try {
+                    const response = await fetch(`${apiBase}${endpoint.path}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    results.push({
+                        name: `${endpoint.name} (${endpoint.path})`,
+                        exists: response.ok,
+                        status: response.ok ? 'pass' : 'fail',
+                        detail: `状态: ${response.status}`
+                    });
+                } catch (error) {
+                    results.push({
+                        name: `${endpoint.name} (${endpoint.path})`,
+                        exists: false,
+                        status: 'fail',
+                        detail: error.message
+                    });
+                }
+            }
+            
+            displayResults('api-check', results, 'API');
+        }
+
+        function displayResults(containerId, results, type) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            
+            const passCount = results.filter(r => r.status === 'pass').length;
+            const failCount = results.filter(r => r.status === 'fail').length;
+            const warnCount = results.filter(r => r.status === 'warn').length;
+            
+            const summary = document.createElement('div');
+            summary.className = 'result ' + (failCount === 0 ? 'success' : 'error');
+            summary.innerHTML = `
+                <strong>测试结果:</strong> 
+                通过: ${passCount} | 
+                失败: ${failCount} | 
+                警告: ${warnCount} | 
+                总计: ${results.length}
+            `;
+            container.appendChild(summary);
+            
+            results.forEach(result => {
+                const div = document.createElement('div');
+                div.className = `test-item ${result.status}`;
+                const icon = result.status === 'pass' ? '✅' : result.status === 'fail' ? '❌' : '⚠️';
+                div.innerHTML = `
+                    ${icon} <code>${result.name}</code>
+                    ${result.detail ? `<br><small>${result.detail}</small>` : ''}
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        async function runAllTests() {
+            const report = document.getElementById('full-report');
+            report.innerHTML = '<div class="result">正在运行测试...</div>';
+            
+            checkComponents();
+            await new Promise(r => setTimeout(r, 500));
+            
+            checkElements();
+            await new Promise(r => setTimeout(r, 500));
+            
+            checkMethods();
+            await new Promise(r => setTimeout(r, 500));
+            
+            checkSocket();
+            await new Promise(r => setTimeout(r, 500));
+            
+            await checkAPI();
+            
+            report.innerHTML = '<div class="result success">✅ 所有测试已完成，请查看上方各测试项结果</div>';
+        }
+
+        // 页面加载后自动运行检查
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (scriptsLoaded === scripts.length) {
+                }
+            }, 2000);
+        });
+    </script>
+</body>
+</html>

@@ -14,6 +14,7 @@ from app.api.v1.auth import get_current_user
 
 # 用户角色常量
 ROLE_SUPER_ADMIN = "super_admin"
+ROLE_ADMIN = "admin"  # 普通管理员
 ROLE_ROOM_OWNER = "room_owner"
 ROLE_USER = "user"
 
@@ -26,6 +27,16 @@ def is_super_admin(user: User) -> bool:
     return user.role == ROLE_SUPER_ADMIN or user.username == SUPER_ADMIN_USERNAME
 
 
+def is_admin(user: User) -> bool:
+    """检查用户是否为普通管理员"""
+    return user.role == ROLE_ADMIN
+
+
+def is_admin_or_super_admin(user: User) -> bool:
+    """检查用户是否为管理员（普通管理员或超级管理员）"""
+    return is_super_admin(user) or is_admin(user)
+
+
 def is_room_owner(user: User) -> bool:
     """检查用户是否为房主"""
     return user.role == ROLE_ROOM_OWNER
@@ -34,6 +45,11 @@ def is_room_owner(user: User) -> bool:
 def is_super_admin_or_room_owner(user: User) -> bool:
     """检查用户是否为超级管理员或房主"""
     return is_super_admin(user) or is_room_owner(user)
+
+
+def can_access_backend(user: User) -> bool:
+    """检查用户是否可以访问后端（超级管理员或普通管理员）"""
+    return is_super_admin(user) or is_admin(user)
 
 
 def check_user_not_disabled(user: User, lang: str = "en_US"):

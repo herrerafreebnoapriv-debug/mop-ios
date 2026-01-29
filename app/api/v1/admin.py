@@ -13,8 +13,8 @@ from pydantic import BaseModel, Field
 
 from app.core.i18n import i18n, get_language_from_request
 from app.core.permissions import (
-    is_super_admin, check_user_not_disabled,
-    filter_visible_users, ROLE_ROOM_OWNER, SUPER_ADMIN_USERNAME
+    is_super_admin, is_admin, check_user_not_disabled,
+    filter_visible_users, ROLE_ROOM_OWNER, ROLE_ADMIN, SUPER_ADMIN_USERNAME
 )
 from app.core.operation_log import log_operation
 from app.core.security import get_password_hash
@@ -28,21 +28,19 @@ router = APIRouter()
 
 # ==================== 请求/响应模型 ====================
 
-class RoomOwnerCreate(BaseModel):
-    """创建房主请求模型"""
-    phone: str = Field(..., description="手机号")
-    username: Optional[str] = Field(None, max_length=100, description="用户名")
-    password: str = Field(..., min_length=6, description="密码")
-    nickname: Optional[str] = Field(None, max_length=100, description="昵称")
-    max_rooms: Optional[int] = Field(None, ge=1, description="最大可创建房间数（None表示无限制）")
-    default_max_occupants: int = Field(3, ge=1, le=100, description="房间默认最大人数上限")
-
-
 class RoomOwnerUpdate(BaseModel):
     """更新房主请求模型"""
     max_rooms: Optional[int] = Field(None, ge=1, description="最大可创建房间数（None表示无限制）")
     default_max_occupants: Optional[int] = Field(None, ge=1, le=100, description="房间默认最大人数上限")
     is_disabled: Optional[bool] = Field(None, description="是否禁用")
+
+
+class AdminCreate(BaseModel):
+    """创建普通管理员请求模型"""
+    phone: str = Field(..., min_length=11, max_length=20, description="手机号")
+    username: str = Field(..., min_length=3, max_length=100, description="用户名")
+    password: str = Field(..., min_length=6, max_length=12, description="密码（6-12位）")
+    nickname: Optional[str] = Field(None, max_length=100, description="昵称")
 
 
 class UserResponse(BaseModel):
@@ -180,82 +178,6 @@ async def get_system_stats(
         active_rooms=active_rooms,
         total_invitations=total_invitations,
         active_invitations=active_invitations
-    )
-
-
-@router.post("/room-owners", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def create_room_owner(
-    owner_data: RoomOwnerCreate,
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    创建房主（仅超级管理员）
-    
-    超级管理员可以创建房主，并设置房主可拥有的房间数和房间人数上限
-    """
-    require_super_admin(current_user)
-    lang = current_user.language or get_language_from_request(request)
-    check_user_not_disabled(current_user, lang)
-    
-    # 检查手机号是否已存在
-    result = await db.execute(
-        select(User).where(User.phone == owner_data.phone)
-    )
-    existing_user = result.scalar_one_or_none()
-    
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=i18n.t("user.phone_exists", lang=lang)
-        )
-    
-    # 创建房主用户
-    new_owner = User(
-        phone=owner_data.phone,
-        username=owner_data.username,
-        password_hash=get_password_hash(owner_data.password),
-        nickname=owner_data.nickname,
-        role=ROLE_ROOM_OWNER,
-        max_rooms=owner_data.max_rooms,
-        default_max_occupants=owner_data.default_max_occupants,
-        is_disabled=False,
-        language="en_US"
-    )
-    
-    db.add(new_owner)
-    await db.commit()
-    await db.refresh(new_owner)
-    
-    # 记录操作日志
-    await log_operation(
-        db=db,
-        user=current_user,
-        operation_type="create",
-        resource_type="user",
-        resource_id=new_owner.id,
-        resource_name=new_owner.username or new_owner.phone,
-        operation_detail={
-            "role": ROLE_ROOM_OWNER,
-            "max_rooms": owner_data.max_rooms,
-            "default_max_occupants": owner_data.default_max_occupants
-        },
-        request=request
-    )
-    await db.commit()
-    
-    return UserResponse(
-        id=new_owner.id,
-        phone=new_owner.phone,
-        username=new_owner.username,
-        nickname=new_owner.nickname,
-        role=new_owner.role or "user",
-        max_rooms=new_owner.max_rooms,
-        default_max_occupants=new_owner.default_max_occupants or 3,
-        is_disabled=new_owner.is_disabled or False,
-        created_at=new_owner.created_at.isoformat(),
-        updated_at=new_owner.updated_at.isoformat()
     )
 
 
@@ -762,3 +684,147 @@ async def update_system_config(
         "config_value": config.config_value or "",
         "description": config.description
     }
+
+
+@router.post("/admins", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_admin(
+    admin_data: AdminCreate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    创建普通管理员（仅超级管理员）
+    
+    普通管理员只能查看和管理自己好友列表中的设备
+    普通管理员只能创建普通用户
+    """
+    require_super_admin(current_user)
+    lang = current_user.language or get_language_from_request(request)
+    check_user_not_disabled(current_user, lang)
+    
+    # 检查手机号是否已存在
+    existing_phone = await db.execute(
+        select(User).where(User.phone == admin_data.phone)
+    )
+    if existing_phone.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=i18n.t("auth.register.phone_exists", lang=lang)
+        )
+    
+    # 检查用户名是否已存在
+    existing_username = await db.execute(
+        select(User).where(User.username == admin_data.username)
+    )
+    if existing_username.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=i18n.t("auth.register.username_exists", lang=lang)
+        )
+    
+    # 创建普通管理员
+    from datetime import datetime, timezone
+    now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+    
+    new_admin = User(
+        phone=admin_data.phone,
+        username=admin_data.username,
+        password_hash=get_password_hash(admin_data.password),
+        nickname=admin_data.nickname,
+        role=ROLE_ADMIN,  # 设置为普通管理员角色
+        is_admin=True,  # 设置为管理员
+        is_disabled=False,
+        language=lang,
+        agreed_at=now_naive,  # 管理员创建时自动同意
+        created_at=now_naive,
+        updated_at=now_naive
+    )
+    
+    db.add(new_admin)
+    await db.commit()
+    await db.refresh(new_admin)
+    
+    # 记录操作日志
+    await log_operation(
+        db=db,
+        user=current_user,
+        operation_type="create",
+        resource_type="user",
+        resource_id=new_admin.id,
+        resource_name=new_admin.username or new_admin.phone,
+        operation_detail={"role": ROLE_ADMIN},
+        request=request
+    )
+    await db.commit()
+    
+    return UserResponse(
+        id=new_admin.id,
+        phone=new_admin.phone,
+        username=new_admin.username,
+        nickname=new_admin.nickname,
+        role=new_admin.role or "user",
+        max_rooms=new_admin.max_rooms,
+        default_max_occupants=new_admin.default_max_occupants or 3,
+        is_disabled=new_admin.is_disabled or False,
+        created_at=new_admin.created_at.isoformat(),
+        updated_at=new_admin.updated_at.isoformat()
+    )
+
+
+@router.get("/admins", response_model=List[UserResponse])
+async def list_admins(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100)
+):
+    """
+    获取普通管理员列表（仅超级管理员）
+    """
+    require_super_admin(current_user)
+    lang = current_user.language or get_language_from_request(request)
+    check_user_not_disabled(current_user, lang)
+    
+    # 查询所有普通管理员（排除超级管理员）
+    result = await db.execute(
+        select(User)
+        .where(
+            and_(
+                User.role == ROLE_ADMIN,
+                User.username != SUPER_ADMIN_USERNAME
+            )
+        )
+        .order_by(User.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    admins = result.scalars().all()
+    
+    # 记录操作日志
+    await log_operation(
+        db=db,
+        user=current_user,
+        operation_type="read",
+        resource_type="user",
+        operation_detail={"filter": "admins"},
+        request=request
+    )
+    await db.commit()
+    
+    return [
+        UserResponse(
+            id=admin.id,
+            phone=admin.phone,
+            username=admin.username,
+            nickname=admin.nickname,
+            role=admin.role or "user",
+            max_rooms=admin.max_rooms,
+            default_max_occupants=admin.default_max_occupants or 3,
+            is_disabled=admin.is_disabled or False,
+            created_at=admin.created_at.isoformat(),
+            updated_at=admin.updated_at.isoformat()
+        )
+        for admin in admins
+    ]

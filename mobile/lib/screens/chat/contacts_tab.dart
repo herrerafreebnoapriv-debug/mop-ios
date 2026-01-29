@@ -38,22 +38,26 @@ class _ContactsTabState extends State<ContactsTab> {
       // 参照网页端：使用 status_filter=accepted 获取已接受的好友
       final response = await _friendsApiService.getFriendsList(statusFilter: 'accepted');
       
-      if (response != null && response['friends'] != null) {
+      if (mounted) {
+        if (response != null && response['friends'] != null) {
+          setState(() {
+            _friends = List<dynamic>.from(response['friends']);
+            _isLoading = false;
+          });
+        } else {
+          setState(() {
+            _friends = [];
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         setState(() {
-          _friends = List<dynamic>.from(response['friends']);
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _friends = [];
+          _errorMessage = e.toString();
           _isLoading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
     }
   }
 
@@ -64,6 +68,11 @@ class _ContactsTabState extends State<ContactsTab> {
         _searchKeyword = '';
       }
     });
+  }
+  
+  /// 公开方法，供外部调用（从 ChatMainScreen 的 AppBar 按钮）
+  void toggleSearch() {
+    _toggleSearch();
   }
 
   void _showAddFriendDialog() {
@@ -180,6 +189,8 @@ class _ContactsTabState extends State<ContactsTab> {
                             friend: friend,
                             onTap: () {
                               // 打开聊天窗口
+                              final uid = friend['user_id'];
+                              final userId = uid is int ? uid : (uid != null ? int.tryParse(uid.toString()) : null);
                               Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (context) => ChatWindowScreen(
@@ -187,7 +198,7 @@ class _ContactsTabState extends State<ContactsTab> {
                                     chatName: friend['nickname']?.toString() ?? 
                                              friend['username']?.toString() ?? '',
                                     isRoom: false,
-                                    userId: friend['user_id'] as int?,
+                                    userId: userId,
                                   ),
                                 ),
                               );
@@ -293,6 +304,7 @@ class _AddFriendDialogState extends State<_AddFriendDialog> {
   final TextEditingController _searchController = TextEditingController();
   List<dynamic> _searchResults = [];
   bool _isSearching = false;
+  String _lastSearchKeyword = '';
 
   @override
   void dispose() {
@@ -301,39 +313,65 @@ class _AddFriendDialogState extends State<_AddFriendDialog> {
   }
 
   Future<void> _searchUsers(String keyword) async {
-    if (keyword.isEmpty) {
+    final trimmedKeyword = keyword.trim();
+    
+    // 如果关键词为空，清空结果
+    if (trimmedKeyword.isEmpty) {
       setState(() {
         _searchResults = [];
+        _isSearching = false;
+        _lastSearchKeyword = '';
       });
       return;
     }
 
     // 延迟搜索，避免频繁请求
-    await Future.delayed(const Duration(milliseconds: 300));
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // 检查在延迟期间关键词是否发生了变化
+    if (_searchController.text.trim() != trimmedKeyword) {
+      return; // 关键词已改变，忽略此次搜索
+    }
+
+    // 如果关键词和上次相同，不重复搜索
+    if (_lastSearchKeyword == trimmedKeyword && _searchResults.isNotEmpty) {
+      return;
+    }
+
+    if (!mounted) return;
 
     setState(() {
       _isSearching = true;
+      _lastSearchKeyword = trimmedKeyword;
     });
 
     try {
-      final results = await _friendsApiService.searchUsers(keyword.trim());
-      if (mounted) {
+      final results = await _friendsApiService.searchUsers(trimmedKeyword);
+      if (mounted && _searchController.text.trim() == trimmedKeyword) {
         setState(() {
-          _searchResults = results;
+          _searchResults = results ?? [];
           _isSearching = false;
         });
+        
+        // 如果没有结果，显示提示
+        if ((results ?? []).isEmpty && mounted) {
+          final l10n = AppLocalizations.of(context);
+          // 不显示错误提示，只显示"未找到用户"
+        }
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && _searchController.text.trim() == trimmedKeyword) {
         setState(() {
           _searchResults = [];
           _isSearching = false;
         });
         final l10n = AppLocalizations.of(context);
+        final errorMsg = e.toString().replaceAll('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${l10n?.t('chat.search_failed') ?? '搜索失败'}: $e'),
+            content: Text('${l10n?.t('chat.search_failed') ?? '搜索失败'}: $errorMsg'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -419,16 +457,32 @@ class _AddFriendDialogState extends State<_AddFriendDialog> {
             ),
             const SizedBox(height: 8),
             if (_isSearching)
-              const Center(child: CircularProgressIndicator())
-            else if (_searchResults.isEmpty && _searchController.text.isNotEmpty)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (_searchController.text.trim().isEmpty)
               Text(
-                l10n?.t('chat.no_users_found') ?? '未找到用户',
-                style: const TextStyle(color: Colors.grey),
+                l10n?.t('chat.search_hint') ?? '提示：请输入完整的手机号或用户名（精确匹配）',
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              )
+            else if (_searchResults.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    l10n?.t('chat.no_users_found') ?? '未找到用户',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                ),
               )
             else
-              Flexible(
+              SizedBox(
+                height: 200,
                 child: ListView.builder(
-                  shrinkWrap: true,
+                  shrinkWrap: false,
                   itemCount: _searchResults.length,
                   itemBuilder: (context, index) {
                     final user = _searchResults[index];

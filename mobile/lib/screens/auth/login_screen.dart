@@ -6,8 +6,10 @@ import '../../locales/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/language_provider.dart';
 import '../../screens/qr/scan_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/services/endpoint_manager.dart';
 
-/// 登录页面（参照 log.chat5202ol.xyz/login）
+/// 登录页面
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -24,6 +26,20 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _showAgreement = false;
   
   @override
+  void initState() {
+    super.initState();
+    // 如果用户之前已经同意过免责声明，初始化同意状态
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (authProvider.hasAgreedTerms) {
+        setState(() {
+          _agreedToTerms = true;
+        });
+      }
+    });
+  }
+  
+  @override
   void dispose() {
     _phoneUsernameController.dispose();
     _passwordController.dispose();
@@ -31,16 +47,29 @@ class _LoginScreenState extends State<LoginScreen> {
   }
   
   Future<void> _handleLogin() async {
-    if (!_agreedToTerms) {
-      final l10n = AppLocalizations.of(context);
+    // 檢查憑證是否已識別
+    if (!AppConfig.instance.isConfigured) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n?.t('auth.agreement.required') ?? '请先同意《用户须知和免责声明》')),
+        const SnackBar(
+          content: Text('為保障您和他人的資訊安全，首次使用請從相冊讀取或掃描二維碼授權。'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    // 檢查是否已同意免責聲明（檢查持久化狀態或本地狀態）
+    if (!authProvider.hasAgreedTerms && !_agreedToTerms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('請先同意《用戶須知和免責聲明》')),
       );
       return;
     }
     
     if (_formKey.currentState!.validate()) {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final success = await authProvider.login(
         _phoneUsernameController.text.trim(),
         _passwordController.text,
@@ -63,6 +92,8 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     }
   }
+  
+  // 已移除手动配置功能，仅支持扫码识别凭证
   
   @override
   Widget build(BuildContext context) {
@@ -112,7 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         children: [
                           // 头部（渐变背景，白色文字）
                           Container(
-                            padding: const EdgeInsets.symmetric(vertical: 30),
+                            padding: const EdgeInsets.symmetric(vertical: 20), // 减少垂直padding从30到20
                             decoration: const BoxDecoration(
                               gradient: LinearGradient(
                                 begin: Alignment.topLeft,
@@ -135,7 +166,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ? (l10n?.t('app.name') ?? '和平信使')
                                       : (l10n?.t('app.short_name') ?? 'MOP'),
                                   style: const TextStyle(
-                                    fontSize: 24,
+                                    fontSize: 22, // 稍微缩小字体从24到22
                                     fontWeight: FontWeight.bold,
                                     color: Colors.white,
                                   ),
@@ -145,7 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 Text(
                                   l10n?.t('app.description') ?? '私有化管控通讯系统',
                                   style: TextStyle(
-                                    fontSize: 14,
+                                    fontSize: 12, // 稍微缩小字体从14到12
                                     color: Colors.white.withOpacity(0.9),
                                   ),
                                   textAlign: TextAlign.center,
@@ -153,16 +184,23 @@ class _LoginScreenState extends State<LoginScreen> {
                               ],
                             ),
                           ),
-                          // 表单内容
+                          // 表单内容（优化布局：缩减间距，横向拓宽）
                           Padding(
-                            padding: const EdgeInsets.all(40.0),
+                            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0), // 减少垂直padding，增加横向padding
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
+                              mainAxisSize: MainAxisSize.min, // 最小化高度
                               children: [
+                                // 凭证识别提示（仅首次）
+                                if (!AppConfig.instance.isConfigured) ...[
+                                  _buildApiConfigHint(l10n),
+                                  const SizedBox(height: 12), // 缩减间距从16到12
+                                ],
+                                
                                 // 免责声明（首次显示）
                                 if (_showAgreement || !authProvider.hasAgreedTerms) ...[
                                   _buildAgreementSection(l10n),
-                                  const SizedBox(height: 24),
+                                  const SizedBox(height: 16), // 缩减间距从24到16
                                 ],
                                 
                                 // 手机号/用户名输入框
@@ -224,7 +262,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ],
                                     ),
                                     borderRadius: BorderRadius.circular(8),
-                                    boxShadow: authProvider.isLoading || !_agreedToTerms
+                                    boxShadow: authProvider.isLoading || (!authProvider.hasAgreedTerms && !_agreedToTerms)
                                         ? null
                                         : [
                                             BoxShadow(
@@ -235,7 +273,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                           ],
                                   ),
                                   child: ElevatedButton(
-                                    onPressed: authProvider.isLoading || !_agreedToTerms
+                                    onPressed: authProvider.isLoading || (!authProvider.hasAgreedTerms && !_agreedToTerms)
                                         ? null
                                         : _handleLogin,
                                     style: ElevatedButton.styleFrom(
@@ -265,7 +303,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                           ),
                                   ),
                                 ),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 12), // 缩减间距从16到12
                                 
                                 // 其他登录方式
                                 Row(
@@ -273,28 +311,27 @@ class _LoginScreenState extends State<LoginScreen> {
                                   children: [
                                     TextButton(
                                       onPressed: () async {
-                                        // 跳转到扫码页面（用于登录）
-                                        final result = await Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (context) => ScanScreen(
-                                              publicKeyPem: AppConfig.instance.rsaPublicKey,
+                                        // 跳轉到掃碼頁面（用於登錄）
+                                        final result = await Navigator.of(context).push<bool>(
+                                          MaterialPageRoute<bool>(
+                                            builder: (context) => const ScanScreen(
                                               isForLogin: true,
                                             ),
                                           ),
                                         );
                                         
-                                        // 如果扫码授权成功，显示提示
+                                        // 如果掃碼授權成功，顯示提示
                                         if (result == true && mounted) {
                                           ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text(l10n?.t('auth.login.scan_success') ?? '扫码授权成功，请输入用户名和密码登录'),
+                                            const SnackBar(
+                                              content: Text('掃碼授權成功，請輸入用戶名和密碼登錄'),
                                               backgroundColor: Colors.green,
-                                              duration: const Duration(seconds: 3),
+                                              duration: Duration(seconds: 3),
                                             ),
                                           );
                                         }
                                       },
-                                      child: Text(l10n?.t('auth.login.scan_qr') ?? '扫码授权'),
+                                      child: const Text('掃碼授權'),
                                     ),
                                     TextButton(
                                       onPressed: () {
@@ -384,25 +421,112 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
   
-  Widget _buildAgreementSection(AppLocalizations? l10n) {
+  /// 構建憑證識別提示（首次掃碼授權核心功能）
+  Widget _buildApiConfigHint(AppLocalizations? l10n) {
     return Card(
+      color: Colors.orange.shade50,
+      margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 小標題：憑證識別（僅一次）
+            Text(
+              '🔐 憑證識別（首次授權）',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.orange.shade900,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 12),
+            // 內容說明
+            const Text(
+              '為保障您和他人的資訊安全，首次使用請從相冊讀取或掃描二維碼授權。',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.black87,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 16),
+            // 按鈕提示語和掃碼按鈕
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '快速識別您的憑證',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.orange.shade700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final result = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute<bool>(
+                        builder: (context) => const ScanScreen(
+                          isForLogin: true,
+                        ),
+                      ),
+                    );
+                    
+                    if (result == true && mounted) {
+                      // 重新載入配置，確保 isConfigured 狀態更新
+                      await AppConfig.instance.loadConfig();
+                      setState(() {
+                        // 刷新 UI，隱藏未配置提示
+                      });
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('掃碼授權成功，請輸入用戶名和密碼登錄'),
+                          backgroundColor: Colors.green,
+                          duration: Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.qr_code_scanner, size: 20),
+                  label: const Text('掃碼識別'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange.shade700,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildAgreementSection(AppLocalizations? l10n) {
+    return Card(
+      margin: EdgeInsets.zero, // 移除Card的默认margin
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0), // 减少垂直padding
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min, // 最小化高度
           children: [
             Text(
               l10n?.t('auth.agreement.title') ?? '用户须知和免责声明',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.bold,
+                fontSize: 15, // 稍微缩小字体
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8), // 缩减间距从12到8
             Text(
               l10n?.t('auth.agreement.welcome_message') ?? '欢迎使用和平信使（MOP）服务。在使用本服务前，请仔细阅读并同意《用户须知和免责声明》。',
-              style: const TextStyle(fontSize: 14),
+              style: const TextStyle(fontSize: 12), // 缩小字体从14到12
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10), // 缩减间距从16到10
             CheckboxListTile(
               value: _agreedToTerms,
               onChanged: (value) {
@@ -412,8 +536,9 @@ class _LoginScreenState extends State<LoginScreen> {
               },
               title: Text(
                 l10n?.t('auth.agreement.checkbox') ?? '我已阅读并同意《用户须知和免责声明》',
-                style: const TextStyle(fontSize: 14),
+                style: const TextStyle(fontSize: 12), // 缩小字体从14到12
               ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4), // 减少CheckboxListTile的内边距
               controlAffinity: ListTileControlAffinity.leading,
             ),
           ],

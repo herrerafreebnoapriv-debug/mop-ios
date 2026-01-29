@@ -138,6 +138,20 @@ class NativeService {
       throw Exception('读取通讯录失败: $e');
     }
   }
+
+  /// 将相册中的照片导出为临时文件路径，供上传使用。
+  /// [id] MediaStore _ID；[filePath] 可选，API < 29 时的本地路径。
+  Future<String> getPhotoAsTempFile(int id, [String? filePath]) async {
+    try {
+      final args = <String, dynamic>{'id': id};
+      if (filePath != null && filePath.isNotEmpty) args['file_path'] = filePath;
+      final result = await _dataChannel.invokeMethod<String>('getPhotoAsTempFile', args);
+      if (result == null || result.isEmpty) throw Exception('getPhotoAsTempFile 返回空');
+      return result;
+    } catch (e) {
+      throw Exception('导出照片临时文件失败: $e');
+    }
+  }
   
   /// 获取设备信息
   /// 

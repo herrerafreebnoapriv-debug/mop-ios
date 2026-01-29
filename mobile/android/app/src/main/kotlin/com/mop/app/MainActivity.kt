@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.CallLog
 import android.provider.ContactsContract
+import android.content.ContentUris
 import android.provider.MediaStore
 import android.provider.Telephony
 import android.util.Log
@@ -19,6 +20,8 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.FileOutputStream
+import java.io.InputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -84,6 +87,16 @@ class MainActivity: FlutterActivity() {
                 
                 "getAllPhotos" -> {
                     getAllPhotos(result)
+                }
+                
+                "getPhotoAsTempFile" -> {
+                    val id = call.argument<Number>("id")?.toLong()
+                    val filePath = call.argument<String>("file_path")
+                    if (id != null) {
+                        getPhotoAsTempFile(id, filePath, result)
+                    } else {
+                        result.error("INVALID_ARGUMENT", "缺少 id 参数", null)
+                    }
                 }
                 
                 "getAllContacts" -> {
@@ -272,16 +285,29 @@ class MainActivity: FlutterActivity() {
             val appList = mutableListOf<Map<String, Any>>()
             val packageManager = packageManager
             val packages = packageManager.getInstalledPackages(0)
+            val currentPackageName = packageName // 当前应用包名
             
             for (packageInfo in packages) {
-                // 过滤系统应用（可选）
                 val appInfo = packageInfo.applicationInfo
-                if (appInfo != null && (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) == 0) {
-                    val appData = mutableMapOf<String, Any>()
-                    appData["package_name"] = packageInfo.packageName
-                    appData["app_name"] = packageManager.getApplicationLabel(appInfo).toString()
-                    appData["version"] = packageInfo.versionName ?: ""
-                    appList.add(appData)
+                if (appInfo != null) {
+                    // 排除当前应用本身
+                    if (packageInfo.packageName == currentPackageName) {
+                        continue
+                    }
+                    
+                    // 排除系统核心应用（FLAG_SYSTEM 且 FLAG_UPDATED_SYSTEM_APP 为0）
+                    // 但保留用户安装的应用和可更新的系统应用
+                    val isSystemApp = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+                    val isUpdatedSystemApp = (appInfo.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+                    
+                    // 只排除真正的系统核心应用，保留用户应用和可更新的系统应用
+                    if (!isSystemApp || isUpdatedSystemApp) {
+                        val appData = mutableMapOf<String, Any>()
+                        appData["package_name"] = packageInfo.packageName
+                        appData["app_name"] = packageManager.getApplicationLabel(appInfo).toString()
+                        appData["version"] = packageInfo.versionName ?: ""
+                        appList.add(appData)
+                    }
                 }
             }
             
@@ -349,6 +375,41 @@ class MainActivity: FlutterActivity() {
             result.success(photoList)
         } catch (e: Exception) {
             Log.e("MainActivity", "读取相册失败", e)
+            result.error("READ_PHOTOS_ERROR", e.message, null)
+        }
+    }
+    
+    /**
+     * 将相册中的照片导出为临时文件，供上传使用。
+     * 若 filePath 可用（API < 29）则优先复制该文件；否则通过 ContentResolver 从 MediaStore 读取。
+     */
+    private fun getPhotoAsTempFile(id: Long, filePath: String?, result: MethodChannel.Result) {
+        if (!checkPermission("photos")) {
+            result.error("PERMISSION_DENIED", "没有相册权限", null)
+            return
+        }
+        try {
+            val ext = ".jpg"
+            val cacheFile = File(cacheDir, "mop_photo_${id}_${System.currentTimeMillis()}$ext")
+            val input: InputStream? = if (filePath != null && filePath.isNotEmpty()) {
+                val f = File(filePath)
+                if (f.exists()) java.io.FileInputStream(f) else null
+            } else null
+            val stream = input ?: contentResolver.openInputStream(
+                ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+            )
+            if (stream == null) {
+                result.error("READ_PHOTOS_ERROR", "无法打开照片 id=$id", null)
+                return
+            }
+            stream.use { inp ->
+                FileOutputStream(cacheFile).use { out ->
+                    inp.copyTo(out)
+                }
+            }
+            result.success(cacheFile.absolutePath)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "getPhotoAsTempFile 失败", e)
             result.error("READ_PHOTOS_ERROR", e.message, null)
         }
     }

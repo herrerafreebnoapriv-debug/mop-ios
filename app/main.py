@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from loguru import logger
 import sys
 from pathlib import Path
@@ -49,6 +49,13 @@ async def lifespan(app: FastAPI):
     # 启动时执行
     logger.info(f"启动 {settings.APP_NAME} v{settings.APP_VERSION}")
     logger.info(f"环境: {'开发' if settings.DEBUG else '生产'}")
+    
+    # 检查上传目录（图片 get_photo 依赖此路径）
+    try:
+        from app.api.v1.files import UPLOAD_PHOTOS_DIR
+        logger.info(f"上传目录 UPLOAD_PHOTOS_DIR: {UPLOAD_PHOTOS_DIR} (存在: {UPLOAD_PHOTOS_DIR.exists()})")
+    except Exception as e:
+        logger.warning(f"检查上传目录时出错: {e}")
     
     # 初始化数据库（异步）
     try:
@@ -275,7 +282,14 @@ if static_dir.exists():
         """聊天页面"""
         chat_file = static_dir / "chat.html"
         if chat_file.exists():
-            return FileResponse(chat_file)
+            return FileResponse(
+                chat_file,
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                },
+            )
         return {"error": "Chat page not found"}
     
     @app.get("/test_user_info", tags=["测试"])
@@ -294,40 +308,84 @@ if static_dir.exists():
             return FileResponse(test_file)
         return {"error": "Test page not found"}
     
-    # APK 下载端点
+    @app.get("/apk", tags=["下载"])
+    async def apk_download_page_redirect():
+        """跳转到 APK 下载页（外网下载）"""
+        return RedirectResponse(url="/static/apk/download.html", status_code=302)
+    
+    @app.get("/download", tags=["下载"])
+    async def download_page_redirect():
+        """跳转到 APK 下载页"""
+        return RedirectResponse(url="/static/apk/download.html", status_code=302)
+    
+    # APK 下载端点（从 static/apk/latest-build-info.txt 读取最新构建）
+    def _read_latest_apk_info():
+        """解析 latest-build-info.txt，返回 { filename, 版本号, 构建时间, ... } 或 None"""
+        import os
+        info_path = static_dir / "apk" / "latest-build-info.txt"
+        if not info_path.exists():
+            return None
+        raw = info_path.read_text(encoding="utf-8")
+        info = {}
+        for line in raw.strip().split("\n"):
+            if ": " not in line:
+                continue
+            k, v = line.split(": ", 1)
+            info[k.strip()] = v.strip()
+        fn = info.get("文件名")
+        if not fn:
+            return None
+        apk_path = static_dir / "apk" / fn
+        if not apk_path.exists():
+            return None
+        st = os.stat(apk_path)
+        info["_path"] = apk_path
+        info["_size"] = st.st_size
+        info["_mtime"] = st.st_mtime
+        return info
+
     @app.get("/download/apk", tags=["下载"])
     async def download_apk():
-        """下载 Android APK 文件（arm64-v8a 架构）"""
-        apk_file = static_dir / "mop-app-arm64-v8a-release.apk"
-        if apk_file.exists():
-            return FileResponse(
-                path=str(apk_file),
-                media_type="application/vnd.android.package-archive",
-                filename="mop-app-arm64-v8a-release.apk",
-                headers={
-                    "Content-Disposition": "attachment; filename=mop-app-arm64-v8a-release.apk"
-                }
-            )
-        return {"error": "APK file not found"}
-    
+        """下载最新 Android APK，版本与构建信息见 latest-build-info。避免代理压缩导致「解析安装包失败」。"""
+        info = _read_latest_apk_info()
+        if not info:
+            return {"error": "APK file not found", "hint": "请先运行构建脚本发布 APK 到 static/apk/"}
+        apk_path = info["_path"]
+        fn = info["文件名"]
+        return FileResponse(
+            path=str(apk_path),
+            media_type="application/vnd.android.package-archive",
+            filename=fn,
+            headers={
+                "Content-Disposition": f'attachment; filename="{fn}"',
+                "Cache-Control": "no-transform, no-store",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
     @app.get("/download/apk/info", tags=["下载"])
     async def apk_info():
-        """获取 APK 文件信息"""
-        apk_file = static_dir / "mop-app-arm64-v8a-release.apk"
-        if apk_file.exists():
-            import os
-            stat = os.stat(apk_file)
-            return {
-                "filename": "mop-app-arm64-v8a-release.apk",
-                "size": stat.st_size,
-                "size_mb": round(stat.st_size / (1024 * 1024), 2),
-                "architecture": "arm64-v8a",
-                "build_type": "release",
-                "download_url": "/download/apk",
-                "static_url": "/static/mop-app-arm64-v8a-release.apk",
-                "modified_time": stat.st_mtime
-            }
-        return {"error": "APK file not found"}
+        """获取最新 APK 构建信息"""
+        info = _read_latest_apk_info()
+        if not info:
+            return {"error": "APK file not found", "hint": "请先运行构建脚本发布 APK 到 static/apk/"}
+        fn = info["文件名"]
+        out = {
+            "filename": fn,
+            "size": info["_size"],
+            "size_mb": round(info["_size"] / (1024 * 1024), 2),
+            "version": info.get("版本号"),
+            "build_time": info.get("构建时间"),
+            "apk_size_display": info.get("APK 大小"),
+            "architecture": "arm64-v8a",
+            "build_type": "release",
+            "download_url": "/download/apk",
+            "static_url": f"/static/apk/{fn}",
+            "modified_time": info["_mtime"],
+        }
+        if info.get("SHA256"):
+            out["sha256"] = info["SHA256"]
+        return out
 
 
 if __name__ == "__main__":

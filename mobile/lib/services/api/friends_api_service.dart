@@ -22,33 +22,16 @@ class FriendsApiService {
     }
   }
   
-  /// 搜索用户
+  /// 搜索用户（使用 ApiService.getList，与列表接口同一 base URL 与故障转移）
   Future<List<dynamic>> searchUsers(String keyword) async {
     try {
-      final response = await _apiService.get(
+      final list = await _apiService.getList(
         '/friends/search',
         queryParameters: {'keyword': keyword},
       );
-      
-      // 后端 API 直接返回 List[FriendResponse]，不是包含 users 或 results 的对象
-      if (response != null) {
-        if (response is List) {
-          // 直接返回数组
-          return List<dynamic>.from(response as List);
-        } else if (response is Map) {
-          // 兼容处理：如果返回的是对象，尝试提取 users 或 results
-          final map = response as Map<String, dynamic>;
-          if (map.containsKey('users') && map['users'] is List) {
-            return List<dynamic>.from(map['users'] as List);
-          } else if (map.containsKey('results') && map['results'] is List) {
-            return List<dynamic>.from(map['results'] as List);
-          }
-        }
-      }
-      return [];
+      return list ?? [];
     } catch (e) {
-      // 错误已在上层处理，这里静默返回空列表
-      return [];
+      rethrow;
     }
   }
   

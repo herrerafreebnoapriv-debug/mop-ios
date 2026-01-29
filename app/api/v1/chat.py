@@ -15,7 +15,7 @@ from app.core.i18n import i18n, get_language_from_request
 from app.core.permissions import is_super_admin, check_user_not_disabled
 from app.core.operation_log import log_operation
 from app.db.session import get_db
-from app.db.models import User, Message, Room, RoomParticipant
+from app.db.models import User, Message, Room, RoomParticipant, File
 from app.api.v1.auth import get_current_user
 from loguru import logger
 
@@ -38,6 +38,13 @@ class MessageResponse(BaseModel):
     sender_nickname: Optional[str] = None
     receiver_nickname: Optional[str] = None
     room_name: Optional[str] = None
+    # 文件相关字段（图片/文件消息）
+    file_id: Optional[int] = None
+    file_url: Optional[str] = None
+    file_name: Optional[str] = None
+    file_size: Optional[int] = None
+    duration: Optional[int] = None  # 语音/视频时长（秒）
+    extra_data: Optional[dict] = None  # 扩展数据，如 call_invitation（视频通话邀请，供前端显示接受/拒绝按钮）
     
     class Config:
         from_attributes = True
@@ -49,6 +56,12 @@ class MessageListResponse(BaseModel):
     messages: List[MessageResponse]
     page: int
     limit: int
+
+
+class MessageSinceResponse(BaseModel):
+    """增量消息响应模型（按最后消息ID之后拉取）"""
+    messages: List[MessageResponse]
+    last_message_id: Optional[int] = Field(None, description="本次返回的最大消息ID，供下次增量使用")
 
 
 class ConversationResponse(BaseModel):
@@ -78,7 +91,9 @@ class SendMessageRequest(BaseModel):
     room_id: Optional[int] = Field(None, description="房间ID（房间群聊消息）")
     message: Optional[str] = Field(None, max_length=5000, description="消息内容（文本消息必需，文件消息可选）")
     message_type: str = Field("text", description="消息类型：text/image/file/audio/system")
-    file_id: Optional[int] = Field(None, description="文件ID（文件/图片/语音消息时必需）")
+    file_id: Optional[int] = Field(None, description="文件ID（语音/通用文件时使用 files 表）")
+    file_url: Optional[str] = Field(None, max_length=500, description="文件URL（图片等 HTTP 上传后直接提供）")
+    file_name: Optional[str] = Field(None, max_length=255, description="文件名（与 file_url 配合）")
 
 
 # ==================== API 路由 ====================
@@ -216,7 +231,14 @@ async def get_messages(
             created_at=msg.created_at,
             sender_nickname=msg.sender.nickname if msg.sender else None,
             receiver_nickname=msg.receiver.nickname if msg.receiver else None,
-            room_name=msg.room.room_name if msg.room else None
+            room_name=msg.room.room_name if msg.room else None,
+            # 文件相关字段（如果存在）
+            file_id=getattr(msg, 'file_id', None),
+            file_url=getattr(msg, 'file_url', None),
+            file_name=getattr(msg, 'file_name', None),
+            file_size=getattr(msg, 'file_size', None),
+            duration=getattr(msg, 'duration', None),
+            extra_data=getattr(msg, 'extra_data', None),
         ))
     
     # 记录操作日志
@@ -235,6 +257,143 @@ async def get_messages(
         page=page,
         limit=limit
     )
+
+
+@router.get("/messages/since", response_model=MessageSinceResponse)
+async def get_messages_since(
+    request: Request,
+    last_message_id: int = Query(0, ge=0, description="最后一条已同步的消息ID（0表示从头开始）"),
+    user_id: Optional[int] = Query(None, description="点对点会话对方用户ID"),
+    room_id: Optional[int] = Query(None, description="房间ID（群聊）"),
+    limit: int = Query(200, ge=1, le=500, description="最多返回的消息数量"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    增量获取消息列表（用于离线消息补偿）
+
+    - 必须指定 user_id（点对点）或 room_id（群聊）之一
+    - 只返回 ID 大于 last_message_id 的消息，按时间正序（旧到新）
+    - 普通用户只能获取与自己相关的消息
+    """
+    lang = current_user.language or get_language_from_request(request)
+    check_user_not_disabled(current_user, lang)
+
+    if not user_id and not room_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="必须指定 user_id 或 room_id",
+        )
+
+    if user_id and room_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="不能同时指定 user_id 和 room_id",
+        )
+
+    conditions = [Message.id > last_message_id]
+
+    # 点对点会话
+    if user_id:
+        if is_super_admin(current_user):
+            # 超级管理员：拉取与指定 user_id 相关的消息
+            conditions.append(
+                or_(
+                    and_(
+                        Message.sender_id == current_user.id,
+                        Message.receiver_id == user_id,
+                    ),
+                    and_(
+                        Message.sender_id == user_id,
+                        Message.receiver_id == current_user.id,
+                    ),
+                )
+            )
+        else:
+            # 普通用户：只能拉取“自己 <-> 对方”的消息
+            conditions.append(
+                and_(
+                    Message.room_id.is_(None),
+                    or_(
+                        and_(
+                            Message.sender_id == current_user.id,
+                            Message.receiver_id == user_id,
+                        ),
+                        and_(
+                            Message.sender_id == user_id,
+                            Message.receiver_id == current_user.id,
+                        ),
+                    ),
+                )
+            )
+
+    # 房间会话
+    if room_id:
+        if is_super_admin(current_user):
+            conditions.append(Message.room_id == room_id)
+        else:
+            # 普通用户：只能拉取自己参与的房间
+            conditions.append(
+                and_(
+                    Message.room_id == room_id,
+                    Message.room_id.in_(
+                        select(Room.id)
+                        .join(RoomParticipant)
+                        .where(
+                            RoomParticipant.user_id == current_user.id,
+                            RoomParticipant.is_active == True,
+                        )
+                    ),
+                )
+            )
+
+    query = (
+        select(Message)
+        .options(
+            selectinload(Message.sender),
+            selectinload(Message.receiver),
+            selectinload(Message.room),
+        )
+        .where(and_(*conditions))
+        .order_by(Message.created_at.asc(), Message.id.asc())
+        .limit(limit)
+    )
+
+    result = await db.execute(query)
+    messages = result.scalars().all()
+
+    response_messages: List[MessageResponse] = []
+    max_id = last_message_id
+    for msg in messages:
+        if msg.id > max_id:
+            max_id = msg.id
+        response_messages.append(
+            MessageResponse(
+                id=msg.id,
+                sender_id=msg.sender_id,
+                receiver_id=msg.receiver_id,
+                room_id=msg.room_id,
+                message=msg.message,
+                message_type=msg.message_type,
+                is_read=msg.is_read,
+                read_at=msg.read_at,
+                created_at=msg.created_at,
+                sender_nickname=msg.sender.nickname if msg.sender else None,
+                receiver_nickname=msg.receiver.nickname
+                if msg.receiver
+                else None,
+                room_name=msg.room.room_name if msg.room else None,
+                file_id=getattr(msg, "file_id", None),
+                file_url=getattr(msg, "file_url", None),
+                file_name=getattr(msg, "file_name", None),
+                file_size=getattr(msg, "file_size", None),
+                duration=getattr(msg, "duration", None),
+                extra_data=getattr(msg, "extra_data", None),
+            )
+        )
+
+    # 不记录操作日志，作为高频补偿接口保持轻量
+    return MessageSinceResponse(messages=response_messages, last_message_id=max_id)
 
 
 @router.get("/messages/{message_id}", response_model=MessageResponse)
@@ -283,7 +442,13 @@ async def get_message(
         created_at=message.created_at,
         sender_nickname=message.sender.nickname if message.sender else None,
         receiver_nickname=message.receiver.nickname if message.receiver else None,
-        room_name=message.room.room_name if message.room else None
+        room_name=message.room.room_name if message.room else None,
+        file_id=getattr(message, 'file_id', None),
+        file_url=getattr(message, 'file_url', None),
+        file_name=getattr(message, 'file_name', None),
+        file_size=getattr(message, 'file_size', None),
+        duration=getattr(message, 'duration', None),
+        extra_data=getattr(message, 'extra_data', None),
     )
 
 
@@ -375,21 +540,40 @@ async def send_message(
                     detail=i18n.get("room.not_participant", lang)
                 )
     
-    # 创建消息记录
+    # 解析文件信息：file_id 查 files 表；图片等可仅传 file_url + file_name
+    file_info = None
+    if request_data.file_id:
+        fr = await db.execute(select(File).where(File.id == request_data.file_id))
+        f = fr.scalar_one_or_none()
+        if f and f.uploader_id == current_user.id:
+            file_info = f
+
     now = datetime.utcnow()
-    # 文件消息的 message 字段存储文件 URL 或文件信息
-    message_content = request_data.message
-    if request_data.file_id and file_info:
+    message_content = request_data.message or ""
+    if file_info:
         message_content = message_content or file_info.file_url
-    
+    elif request_data.file_url and request_data.message_type in ("image", "audio", "video", "file"):
+        message_content = message_content or request_data.file_url
+
+    file_id_val = file_info.id if file_info else None
+    file_url_val = file_info.file_url if file_info else (request_data.file_url or None)
+    file_name_val = file_info.filename if file_info else (request_data.file_name or None)
+    file_size_val = file_info.file_size if file_info else None
+    duration_val = file_info.duration if file_info else None
+
     db_message = Message(
         sender_id=current_user.id,
         receiver_id=request_data.receiver_id,
         room_id=request_data.room_id,
-        message=message_content or "",
+        message=message_content,
         message_type=request_data.message_type,
         is_read=False,
-        created_at=now
+        created_at=now,
+        file_id=file_id_val,
+        file_url=file_url_val,
+        file_name=file_name_val,
+        file_size=file_size_val,
+        duration=duration_val,
     )
     
     db.add(db_message)
@@ -417,8 +601,7 @@ async def send_message(
                     'is_read': False,
                     'created_at': now.isoformat()
                 }
-                # 如果是文件消息，添加文件信息
-                if request_data.file_id and file_info:
+                if file_info:
                     message_data['file_id'] = file_info.id
                     message_data['file_url'] = file_info.file_url
                     message_data['file_name'] = file_info.filename
@@ -428,7 +611,15 @@ async def send_message(
                     if file_info.width and file_info.height:
                         message_data['width'] = file_info.width
                         message_data['height'] = file_info.height
-                
+                elif file_url_val:
+                    message_data['file_url'] = file_url_val
+                    if file_name_val:
+                        message_data['file_name'] = file_name_val
+                    if file_size_val is not None:
+                        message_data['file_size'] = file_size_val
+                    if duration_val is not None:
+                        message_data['duration'] = duration_val
+
                 await sio.emit('message', message_data, room=f"user_{request_data.receiver_id}")
         elif request_data.room_id:
             # 房间群聊：发送给所有参与者
@@ -453,8 +644,7 @@ async def send_message(
                         'is_read': False,
                         'created_at': now.isoformat()
                     }
-                    # 如果是文件消息，添加文件信息
-                    if request_data.file_id and file_info:
+                    if file_info:
                         message_data['file_id'] = file_info.id
                         message_data['file_url'] = file_info.file_url
                         message_data['file_name'] = file_info.filename
@@ -464,7 +654,15 @@ async def send_message(
                         if file_info.width and file_info.height:
                             message_data['width'] = file_info.width
                             message_data['height'] = file_info.height
-                    
+                    elif file_url_val:
+                        message_data['file_url'] = file_url_val
+                        if file_name_val:
+                            message_data['file_name'] = file_name_val
+                        if file_size_val is not None:
+                            message_data['file_size'] = file_size_val
+                        if duration_val is not None:
+                            message_data['duration'] = duration_val
+
                     await sio.emit('message', message_data, room=f"user_{participant.user_id}")
     except Exception as e:
         logger.warning(f"Socket.io 推送消息失败（消息已保存到数据库）: {e}")
@@ -497,7 +695,14 @@ async def send_message(
         created_at=db_message.created_at,
         sender_nickname=db_message.sender.nickname if db_message.sender else None,
         receiver_nickname=db_message.receiver.nickname if db_message.receiver else None,
-        room_name=db_message.room.room_name if db_message.room else None
+        room_name=db_message.room.room_name if db_message.room else None,
+        # 文件相关字段（如果存在）
+        file_id=getattr(db_message, 'file_id', None),
+        file_url=getattr(db_message, 'file_url', None),
+        file_name=getattr(db_message, 'file_name', None),
+        file_size=getattr(db_message, 'file_size', None),
+        duration=getattr(db_message, 'duration', None),
+        extra_data=getattr(db_message, 'extra_data', None),
     )
 
 

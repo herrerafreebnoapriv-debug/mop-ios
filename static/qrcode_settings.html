@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#667eea">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>扫码设置 - MOP</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=20260112">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: #f5f7fa;
+            min-height: 100vh;
+            display: flex;
+        }
+        .sidebar {
+            width: 147px;
+            min-width: 147px;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 0;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.08);
+        }
+        .sidebar-title { padding: 0 12px 12px; font-size: 12px; color: rgba(255,255,255,0.7); }
+        .sidebar-menu-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 12px; cursor: pointer; transition: background 0.2s;
+            color: white; text-decoration: none; font-size: 13px;
+        }
+        .sidebar-menu-item:hover { background: rgba(255,255,255,0.15); }
+        .sidebar-menu-item.active { background: rgba(255,255,255,0.25); font-weight: 600; }
+        .sidebar-menu-item-icon { font-size: 1em; }
+        .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        .main-header {
+            background: white; padding: 20px 24px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        }
+        .main-title { font-size: 1.4em; color: #333; }
+        .main-body { flex: 1; padding: 24px; overflow-x: auto; }
+        .message { padding: 12px 20px; border-radius: 6px; margin-bottom: 16px; display: none; }
+        .message-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .message-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .message-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .cards-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+        .cards-row.auth-only { grid-template-columns: 1fr; }
+        @media (max-width: 900px) { .cards-row, .cards-row.auth-only { grid-template-columns: 1fr; } }
+        .card {
+            background: white; border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            padding: 24px; margin-bottom: 0;
+        }
+        .card h2 { font-size: 1.2em; margin-bottom: 16px; color: #333; display: flex; align-items: center; gap: 8px; }
+        .btn { padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-cancel { background: #e0e0e0; color: #333; }
+        .btn-confirm { background: #667eea; color: white; }
+        .modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5); z-index: 1000;
+            align-items: center; justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: white; border-radius: 12px; padding: 24px;
+            width: 90%; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .modal h3 { margin-bottom: 16px; color: #333; }
+        .modal .form-group { margin-bottom: 14px; }
+        .modal label { display: block; margin-bottom: 6px; font-size: 14px; color: #555; }
+        .modal input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .modal-actions { margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; }
+        .modal-actions .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; }
+        #auth-qr-wrap { text-align: center; padding: 24px; min-height: 200px; }
+        #auth-qr-wrap img { max-width: 256px; height: auto; border: 1px solid #eee; border-radius: 8px; }
+        #auth-qr-hint { font-size: 13px; color: #666; margin-top: 12px; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-title">左侧菜单</div>
+        <a href="/static/dashboard.html" class="sidebar-menu-item"><span class="sidebar-menu-item-icon">👤</span>用户信息</a>
+        <a href="#" class="sidebar-menu-item" id="menu-change-pwd"><span class="sidebar-menu-item-icon">🔑</span>修改密码</a>
+        <a href="/static/devices.html" class="sidebar-menu-item"><span class="sidebar-menu-item-icon">📱</span>设备管理</a>
+        <a href="/static/user_management.html" class="sidebar-menu-item"><span class="sidebar-menu-item-icon">👥</span>用户管理</a>
+        <a href="/static/invitation_management.html" class="sidebar-menu-item"><span class="sidebar-menu-item-icon">🎫</span>邀请码管理</a>
+        <a href="/static/qrcode_settings.html" class="sidebar-menu-item active"><span class="sidebar-menu-item-icon">⚙️</span>扫码配置</a>
+    </aside>
+    <div class="main">
+        <header class="main-header">
+            <h1 class="main-title">扫码设置</h1>
+        </header>
+        <div class="main-body">
+            <div id="messages"></div>
+
+            <div class="cards-row auth-only">
+                <!-- 扫码配置（仅超级管理员） -->
+                <div class="card" id="qrcode-config-card" style="display: none;">
+                    <h2><span>⚙️</span> 扫码配置</h2>
+                    <button class="btn btn-primary" onclick="loadQRCodeConfigs()" style="margin-bottom: 12px;">刷新配置</button>
+                    <div id="qrcode-configs-list" style="max-height: 400px; overflow-y: auto; background: #f8f9fa; border-radius: 6px; padding: 10px;">
+                        <p style="color: #999; text-align: center; padding: 10px; font-size: 12px;">点击「刷新配置」加载</p>
+                    </div>
+                </div>
+
+                <!-- 生成二维码：用于客户端扫码授权 -->
+                <div class="card">
+                    <h2><span>📱</span> 生成二维码（用于客户端扫码授权）</h2>
+                    <p id="auth-qr-desc" style="color: #666; font-size: 14px; margin-bottom: 16px;">手机APP首次使用二维码授权才能登录</p>
+                    <div id="auth-qr-wrap">
+                        <button class="btn btn-primary" onclick="generateAuthQR()">生成授权二维码</button>
+                    </div>
+                    <p id="auth-qr-hint" style="display: none;">二维码 5 分钟内有效，请使用客户端扫描。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-change-pwd">
+        <div class="modal">
+            <h3>修改密码</h3>
+            <div class="form-group">
+                <label>旧密码</label>
+                <input type="password" id="pwd-old" placeholder="请输入旧密码">
+            </div>
+            <div class="form-group">
+                <label>新密码</label>
+                <input type="password" id="pwd-new" placeholder="至少6位">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" onclick="closeChangePwdModal()">取消</button>
+                <button class="btn btn-confirm" onclick="submitChangePwd()">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getApiBase() {
+            const h = window.location.hostname, p = window.location.protocol;
+            if (h === 'www.chat5202ol.xyz' || h === 'chat5202ol.xyz' || h === 'app.chat5202ol.xyz') return 'https://api.chat5202ol.xyz/api/v1';
+            if (h === 'api.chat5202ol.xyz') return p + '//' + h + '/api/v1';
+            return '/api/v1';
+        }
+        const API_BASE = getApiBase();
+        let currentUser = null;
+        let authQrObjectUrl = null;
+
+        function getToken() { return localStorage.getItem('access_token'); }
+
+        async function apiRequest(url, options = {}) {
+            const token = getToken();
+            if (!token) {
+                showMessage('未登录，请先登录', 'error');
+                setTimeout(() => { window.location.href = '/login'; }, 2000);
+                throw new Error('未登录');
+            }
+            options.headers = options.headers || {};
+            options.headers['Authorization'] = 'Bearer ' + token;
+            if (options.body && !options.headers['Content-Type']) options.headers['Content-Type'] = 'application/json';
+            options.credentials = options.credentials || 'include';
+            const res = await fetch(url, options);
+            if (res.status === 401) {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                showMessage('登录已过期，请重新登录', 'error');
+                setTimeout(() => { window.location.href = '/login'; }, 2000);
+                throw new Error('登录已过期');
+            }
+            return res;
+        }
+
+        function showMessage(text, type) {
+            const el = document.getElementById('messages');
+            const m = document.createElement('div');
+            m.className = 'message message-' + type;
+            m.textContent = text;
+            m.style.display = 'block';
+            el.appendChild(m);
+            setTimeout(() => { m.style.opacity = '0'; m.style.transition = 'opacity 0.3s'; setTimeout(() => m.remove(), 300); }, 5000);
+        }
+
+        async function loadUserInfo() {
+            try {
+                const token = getToken();
+                if (!token) { showMessage('未登录', 'error'); setTimeout(() => { window.location.href = '/login'; }, 2000); return; }
+                const res = await fetch(API_BASE + '/auth/me', {
+                    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                    credentials: 'include'
+                });
+                if (!res.ok) {
+                    if (res.status === 401) { localStorage.removeItem('access_token'); showMessage('登录已过期', 'error'); setTimeout(() => { window.location.href = '/login'; }, 2000); return; }
+                    throw new Error('获取用户信息失败');
+                }
+                currentUser = await res.json();
+                const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
+                const qc = document.getElementById('qrcode-config-card');
+                const row = document.querySelector('.cards-row');
+                if (qc) qc.style.display = isSuperAdmin ? 'block' : 'none';
+                if (row) { row.classList.toggle('auth-only', !isSuperAdmin); }
+                if (isSuperAdmin) loadQRCodeConfigs();
+            } catch (e) {
+                console.error(e);
+                showMessage('加载用户信息失败', 'error');
+            }
+        }
+
+        async function generateAuthQR() {
+            const wrap = document.getElementById('auth-qr-wrap');
+            const hint = document.getElementById('auth-qr-hint');
+            if (authQrObjectUrl) { URL.revokeObjectURL(authQrObjectUrl); authQrObjectUrl = null; }
+            hint.style.display = 'none';
+            wrap.innerHTML = '<p style="color: #999;">生成中...</p>';
+            try {
+                const res = await apiRequest(API_BASE + '/qrcode/auth', { method: 'GET' });
+                if (!res.ok) {
+                    let errorMsg = '生成失败';
+                    try {
+                        const errData = await res.json();
+                        errorMsg = errData.detail || errData.message || `HTTP ${res.status}`;
+                    } catch (parseErr) {
+                        errorMsg = `HTTP ${res.status}: ${res.statusText}`;
+                    }
+                    throw new Error(errorMsg);
+                }
+                const blob = await res.blob();
+                if (!blob || blob.size === 0) throw new Error('返回的图片数据为空');
+                authQrObjectUrl = URL.createObjectURL(blob);
+                wrap.innerHTML = '<img id="auth-qr-img" src="' + authQrObjectUrl + '" alt="授权二维码"><br><button class="btn btn-primary" onclick="generateAuthQR()" style="margin-top: 12px;">重新生成</button>';
+                hint.style.display = 'block';
+            } catch (e) {
+                console.error('生成授权二维码失败:', e);
+                wrap.innerHTML = '<p style="color: #e74c3c;">生成失败，请重试</p><button class="btn btn-primary" onclick="generateAuthQR()" style="margin-top: 12px;">重试</button>';
+                showMessage('生成失败: ' + (e.message || '请重试'), 'error');
+            }
+        }
+
+        async function loadQRCodeConfigs() {
+            const isSuperAdmin = currentUser && currentUser.role === 'super_admin';
+            if (!isSuperAdmin) { showMessage('仅超级管理员可管理扫码配置', 'error'); return; }
+            const list = document.getElementById('qrcode-configs-list');
+            if (!list) return;
+            list.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">加载中...</div>';
+            try {
+                const res = await apiRequest(API_BASE + '/admin/system-configs', { method: 'GET' });
+                if (!res.ok) throw new Error('获取配置失败');
+                const data = await res.json();
+                const configs = (data.configs || []).filter(c => c.config_key && c.config_key.startsWith('qrcode.'));
+                const names = { 'qrcode.max_scans': '最大扫码次数', 'qrcode.encrypted_enabled': '加密模式', 'qrcode.plain_enabled': '明文模式' };
+                const filtered = configs.filter(c => c.config_key !== 'qrcode.plain_max_scans' && c.config_key !== 'qrcode.encrypted_max_scans');
+                if (!filtered.length) { list.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">暂无配置</p>'; return; }
+                list.innerHTML = '<div style="max-height: 400px; overflow-y: auto;">' + filtered.map(c => {
+                    const isBool = c.config_key.includes('_enabled');
+                    const isNum = c.config_key === 'qrcode.max_scans' || c.config_key.includes('_max_scans');
+                    const val = c.config_value || '';
+                    const name = names[c.config_key] || c.config_key;
+                    return '<div style="padding: 8px; border-bottom: 1px solid #ddd; font-size: 12px;">' +
+                        '<strong style="color: #333;">' + name + '</strong>' +
+                        (isBool ? '<label style="display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer;">' +
+                            '<input type="checkbox" ' + (val.toLowerCase() === 'true' ? 'checked' : '') + ' onchange="updateQRCodeConfig(\'' + c.config_key + '\', this.checked ? \'true\' : \'false\')">' +
+                            '<span>' + (val.toLowerCase() === 'true' ? '已启用' : '已禁用') + '</span></label>' :
+                        isNum ? '<div style="display:flex;gap:4px;align-items:center;margin-top:6px;">' +
+                            '<input type="number" id="cfg-' + c.config_key + '" value="' + val + '" min="0" style="width:60px;padding:4px;">' +
+                            '<button class="btn btn-primary" style="padding:4px 10px;font-size:12px;" onclick="updateQRCodeConfig(\'' + c.config_key + '\', document.getElementById(\'cfg-' + c.config_key + '\').value)">保存</button></div>' +
+                            '<span style="font-size:10px;color:#666;">0=不限制</span>' :
+                        '<div style="display:flex;gap:6px;margin-top:6px;"><input type="text" id="cfg-' + c.config_key + '" value="' + val + '" style="flex:1;padding:4px 8px;">' +
+                            '<button class="btn btn-primary" style="padding:4px 10px;font-size:12px;" onclick="updateQRCodeConfig(\'' + c.config_key + '\', document.getElementById(\'cfg-' + c.config_key + '\').value)">保存</button></div>') +
+                        '</div>';
+                }).join('') + '</div>';
+            } catch (e) {
+                console.error(e);
+                list.innerHTML = '<p style="color: #e74c3c; text-align: center; padding: 20px;">加载失败: ' + (e.message || '') + '</p>';
+            }
+        }
+
+        async function updateQRCodeConfig(key, value) {
+            try {
+                const res = await apiRequest(API_BASE + '/admin/system-configs/' + encodeURIComponent(key), {
+                    method: 'PUT',
+                    body: JSON.stringify({ config_value: value })
+                });
+                if (!res.ok) throw new Error('更新失败');
+                showMessage('已保存', 'success');
+                loadQRCodeConfigs();
+            } catch (e) {
+                showMessage('更新失败: ' + (e.message || ''), 'error');
+            }
+        }
+
+        document.getElementById('menu-change-pwd').addEventListener('click', function(e) {
+            e.preventDefault();
+            document.getElementById('modal-change-pwd').classList.add('show');
+            document.getElementById('pwd-old').value = '';
+            document.getElementById('pwd-new').value = '';
+        });
+
+        function closeChangePwdModal() { document.getElementById('modal-change-pwd').classList.remove('show'); }
+
+        async function submitChangePwd() {
+            const oldP = document.getElementById('pwd-old').value;
+            const newP = document.getElementById('pwd-new').value;
+            if (!oldP || !newP) { showMessage('请填写旧密码和新密码', 'error'); return; }
+            if (newP.length < 6) { showMessage('新密码至少6位', 'error'); return; }
+            try {
+                const res = await apiRequest(API_BASE + '/users/me/change-password', {
+                    method: 'POST',
+                    body: JSON.stringify({ old_password: oldP, new_password: newP })
+                });
+                if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || '修改失败'); }
+                showMessage('密码已修改', 'success');
+                closeChangePwdModal();
+            } catch (e) { showMessage('修改密码失败: ' + (e.message || e), 'error'); }
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            if (!getToken()) {
+                showMessage('未登录，正在跳转...', 'info');
+                setTimeout(() => { window.location.href = '/login'; }, 1500);
+                return;
+            }
+            await loadUserInfo();
+        });
+    </script>
+</body>
+</html>

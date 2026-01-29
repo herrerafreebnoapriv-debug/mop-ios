@@ -45,6 +45,7 @@ fi
 echo ""
 echo "4. 启动 jitsi_prosody..."
 docker run -d \
+    --log-driver none \
     --name jitsi_prosody \
     --restart unless-stopped \
     --network jitsi_meet \
@@ -70,7 +71,7 @@ docker run -d \
     -e JWT_ALLOW_EMPTY=false \
     -e JWT_AUTH_TYPE=token \
     -e JWT_TOKEN_AUTH_MODULE=token_verification \
-    -e LOG_LEVEL=INFO \
+    -e LOG_LEVEL="${JITSI_LOG_LEVEL:-ERROR}" \
     -e TZ=Asia/Shanghai \
     jitsi/prosody:stable
 
@@ -78,6 +79,7 @@ docker run -d \
 echo ""
 echo "5. 启动 jitsi_jvb..."
 docker run -d \
+    --log-driver none \
     --name jitsi_jvb \
     --restart unless-stopped \
     --network jitsi_meet \
@@ -92,9 +94,9 @@ docker run -d \
     -e JVB_BREWERY_MUC=jvbbrewery \
     -e JVB_PORT=10000 \
     -e JVB_TCP_PORT=4443 \
-    -e JVB_STUN_SERVERS=meet-jit-si-turnrelay.jitsi.net:443 \
+    -e JVB_STUN_SERVERS="${JITSI_JVB_STUN_SERVERS:-}" \
     -e JVB_ENABLE_APIS=rest,xmpp \
-    -e LOG_LEVEL=INFO \
+    -e LOG_LEVEL="${JITSI_LOG_LEVEL:-ERROR}" \
     -e TZ=Asia/Shanghai \
     jitsi/jvb:stable
 
@@ -102,6 +104,7 @@ docker run -d \
 echo ""
 echo "6. 启动 jitsi_jicofo..."
 docker run -d \
+    --log-driver none \
     --name jitsi_jicofo \
     --restart unless-stopped \
     --network jitsi_meet \
@@ -118,6 +121,7 @@ docker run -d \
     -e HOST=meet.jitsi \
     -e XMPP_MUC_DOMAIN=muc.meet.jitsi \
     -e ENABLE_SCTP=0 \
+    -e LOG_LEVEL="${JITSI_LOG_LEVEL:-ERROR}" \
     -e TZ=Asia/Shanghai \
     jitsi/jicofo:stable
 
@@ -139,6 +143,7 @@ fi
 PROSODY_IP=$(docker inspect jitsi_prosody --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null || echo "172.19.0.2")
 
 docker run -d \
+    --log-driver none \
     --name jitsi_web \
     --restart unless-stopped \
     --network jitsi_meet \

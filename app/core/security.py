@@ -5,8 +5,10 @@
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+import hashlib
 import json
 import base64
+import os
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from cryptography.hazmat.primitives import serialization, hashes
@@ -224,6 +226,86 @@ def load_rsa_public_key() -> rsa.RSAPublicKey:
         raise ValueError(f"无效的 RSA 公钥格式: {str(e)}")
 
 
+def _xor_bytes(data: bytes, key: bytes) -> bytes:
+    """XOR 逐字节，key 循环使用。"""
+    out = bytearray(len(data))
+    for i, b in enumerate(data):
+        out[i] = b ^ key[i % len(key)]
+    return bytes(out)
+
+
+def _derived_key(master_key: str, salt: bytes) -> bytes:
+    """从主密钥 + 盐派生 32 字节密钥：SHA256(master_key || salt)。"""
+    return hashlib.sha256(master_key.encode('utf-8') + salt).digest()
+
+
+def simple_encrypt(data: dict, key: Optional[str] = None, use_salt: bool = True) -> str:
+    """
+    简单加密（Base64 + XOR）。支持带盐模式，同明文不同密文。
+    
+    - 无盐（use_salt=False）：兼容旧版，xor(json, fix_key)。
+    - 带盐（use_salt=True）：格式 base64(0x01 || salt_8 || xor(json, derived_key))，
+      derived_key = SHA256(master_key || salt)。
+    
+    Args:
+        data: 要加密的数据字典
+        key: 主密钥，默认从 QR_ENCRYPTION_KEY 或 MOP_QR_KEY_2026 取
+        use_salt: 是否带盐（默认 True）
+    
+    Returns:
+        Base64 URL-safe 编码的密文
+    """
+    try:
+        optimized_data = {}
+        key_mapping = {"api_url": "u", "room_id": "r", "timestamp": "t", "expires_at": "e"}
+        for k, v in data.items():
+            optimized_data[key_mapping.get(k, k)] = v
+        json_str = json.dumps(optimized_data, ensure_ascii=False, separators=(',', ':'))
+        data_bytes = json_str.encode('utf-8')
+        master = key or getattr(settings, 'QR_ENCRYPTION_KEY', None) or "MOP_QR_KEY_2026"
+
+        if use_salt:
+            salt = os.urandom(8)
+            dk = _derived_key(master, salt)
+            cipher = _xor_bytes(data_bytes, dk)
+            raw = b'\x01' + salt + cipher
+        else:
+            key_bytes = master.encode('utf-8')
+            raw = _xor_bytes(data_bytes, key_bytes)
+        return base64.urlsafe_b64encode(raw).decode('utf-8').rstrip('=')
+    except Exception as e:
+        raise ValueError(f"简单加密失败: {str(e)}")
+
+
+def simple_decrypt(encrypted_data: str, key: Optional[str] = None) -> dict:
+    """
+    简单解密（Base64 + XOR）。自动识别无盐（legacy）与带盐（v1）格式。
+    
+    - 若 raw[0]==0x01 且 len>=9：v1 带盐，salt=raw[1:9]，cipher=raw[9:]，用 derived_key 解密。
+    - 否则：legacy 无盐，用固定密钥 XOR 解密。
+    """
+    try:
+        missing = len(encrypted_data) % 4
+        if missing:
+            encrypted_data += '=' * (4 - missing)
+        raw = base64.urlsafe_b64decode(encrypted_data.encode('utf-8'))
+        master = key or getattr(settings, 'QR_ENCRYPTION_KEY', None) or "MOP_QR_KEY_2026"
+
+        if len(raw) >= 9 and raw[0] == 0x01:
+            salt = raw[1:9]
+            cipher = raw[9:]
+            dk = _derived_key(master, salt)
+            json_bytes = _xor_bytes(cipher, dk)
+        else:
+            key_bytes = master.encode('utf-8')
+            json_bytes = _xor_bytes(raw, key_bytes)
+        data = json.loads(json_bytes.decode('utf-8'))
+        key_mapping = {"u": "api_url", "r": "room_id", "t": "timestamp", "e": "expires_at"}
+        return {key_mapping.get(k, k): v for k, v in data.items()}
+    except Exception as e:
+        raise ValueError(f"简单解密失败: {str(e)}")
+
+
 def rsa_encrypt(data: dict, use_short_keys: bool = True, compress: bool = False) -> str:
     """
     使用 RSA 私钥对数据进行签名加密
@@ -402,9 +484,9 @@ def create_jitsi_token(
     # Prosody 配置中使用的是完整 URL（包含协议），所以这里也使用完整 URL
     audience = server_url.rstrip('/')  # 使用完整 URL 作为 audience
     
-    # 为了避免时间同步问题，将 nbf 设置为稍微早一点的时间（减去30秒）
-    # 这样可以容忍服务器之间的时间差异
-    nbf_time = now - timedelta(seconds=30)
+    # 为了避免时间同步问题，将 nbf 设置为较早时间。
+    # Jitsi/Prosody 若时钟落后于后端，会报「nbf 值在未来」；故使用 10 分钟负偏移以容忍较大时钟差。
+    nbf_time = now - timedelta(seconds=600)
     
     # Jitsi JWT payload 结构
     payload = {
@@ -414,7 +496,7 @@ def create_jitsi_token(
         "room": room_id,  # 房间名称
         "exp": int(expire.timestamp()),  # 过期时间
         "iat": int(now.timestamp()),  # 签发时间
-        "nbf": int(nbf_time.timestamp()),  # Not before (提前30秒以避免时间同步问题)
+        "nbf": int(nbf_time.timestamp()),  # Not before（提前 10 分钟以容忍 Jitsi 时钟落后）
         "context": {
             "user": {
                 "id": user_id,

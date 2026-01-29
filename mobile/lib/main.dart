@@ -19,6 +19,8 @@ import 'screens/qr/scan_screen.dart';
 import 'screens/room/room_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/rooms/rooms_list_screen.dart';
+import 'services/push/fcm_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +37,18 @@ void main() async {
   
   // 加载应用配置
   await AppConfig.instance.loadConfig();
+  
+  // 初始化 Firebase 和 FCM（后台消息处理器）
+  try {
+    // 注册后台消息处理器（必须在 Firebase.initializeApp 之前）
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    
+    // 初始化 FCM 服务
+    await FCMService.instance.initialize();
+  } catch (e) {
+    debugPrint('⚠️ Firebase/FCM 初始化失败（可能未配置）: $e');
+    // 如果 Firebase 未配置，静默失败（不影响其他功能）
+  }
   
   // 创建 LanguageProvider 并等待初始化完成（确保语言跟随系统）
   final languageProvider = LanguageProvider();

@@ -79,6 +79,8 @@ class Settings(BaseSettings):
     # ==================== RSA 加密配置 ====================
     RSA_PRIVATE_KEY: str = Field(..., description="RSA 私钥（用于二维码加密签名，支持 \\n 转义的单行格式）")
     RSA_PUBLIC_KEY: str = Field(..., description="RSA 公钥（用于二维码解密验证，支持 \\n 转义的单行格式）")
+    # 二维码简单加密主密钥（用于 simple_encrypt / simple_decrypt）。未设置时使用默认固定密钥 MOP_QR_KEY_2026
+    QR_ENCRYPTION_KEY: Optional[str] = Field(default=None, description="二维码简单加密主密钥（可选）")
     
     @field_validator("RSA_PRIVATE_KEY", "RSA_PUBLIC_KEY", mode="after")
     @classmethod

@@ -38,16 +38,24 @@ class RoomsApiService {
   
   /// 创建房间
   Future<Map<String, dynamic>?> createRoom({
+    String? roomId,
     String? roomName,
     int? maxOccupants,
   }) async {
     try {
+      final data = <String, dynamic>{};
+      if (roomId != null) {
+        data['room_id'] = roomId;
+      }
+      if (roomName != null) {
+        data['room_name'] = roomName;
+      }
+      if (maxOccupants != null) {
+        data['max_occupants'] = maxOccupants;
+      }
       return await _apiService.post(
         '/rooms/create',
-        data: {
-          'room_name': roomName,
-          'max_occupants': maxOccupants,
-        },
+        data: data,
       );
     } catch (e) {
       rethrow;

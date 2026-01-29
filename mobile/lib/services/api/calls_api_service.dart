@@ -24,12 +24,12 @@ class CallsApiService {
         queryParams['call_status'] = callStatus;
       }
       
-      final response = await _apiService.get(
+      final response = await _apiService.getList(
         '/calls',
         queryParameters: queryParams,
       );
       
-      if (response != null && response is List) {
+      if (response != null && response.isNotEmpty) {
         return List<dynamic>.from(response);
       }
       return [];

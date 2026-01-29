@@ -40,7 +40,11 @@
     "permissions": {
       "title": "Instrucciones de Uso de Permisos de Privacidad",
       "checkbox": "Entiendo y acepto los propósitos de los permisos anteriores"
-    }
+    },
+    "credential_title": "Reconocimiento de Credenciales (Solo una vez)",
+    "credential_content": "Para garantizar la seguridad de su información y la de otras personas, la primera vez que use la aplicación, lea del álbum de fotos o escanee el código QR para autorización.",
+    "credential_button_hint": "Reconocer rápidamente sus credenciales",
+    "credential_button_text": "Escanear QR"
   },
   "common": {
     "ok": "OK",
@@ -53,7 +57,8 @@
     "create": "Crear",
     "unknown": "Desconocido",
     "yesterday": "Ayer",
-    "days_ago": "Hace {days} días"
+    "days_ago": "Hace {days} días",
+    "manual_config": "Configuración Manual"
   },
   "chat": {
     "messages": "Mensajes",
@@ -74,7 +79,10 @@
     "video_call": "Videollamada",
     "voice_recording": "Grabando...",
     "voice_sending": "Enviando voz...",
-    "video_call_coming_soon": "Función de videollamada próximamente..."
+    "video_call_coming_soon": "Función de videollamada próximamente...",
+    "more": "Más",
+    "voice_message": "Mensaje de voz",
+    "voice_long_press_hint": "Mantén pulsado el botón del micrófono a la izquierda para enviar un mensaje de voz"
   },
   "rooms": {
     "title": "Gestión de Salas",
@@ -160,7 +168,6 @@
     "grant_permission": "Otorgar permiso",
     "scan_failed": "Error al escanear",
     "authorize_success": "Autorización de código QR exitosa, por favor inicie sesión",
-    "config_api_first": "Por favor configure la dirección API primero",
     "decrypt_failed": "Error al descifrar",
     "pick_from_gallery": "Elegir de la galería"
   },
@@ -181,6 +188,7 @@
     "send_image_failed": "Error al enviar imagen",
     "send_file_failed": "Error al enviar archivo",
     "take_photo_failed": "Error al tomar foto",
+    "load_image_failed": "Error al cargar imagen",
     "share_failed": "Error al compartir",
     "copy_failed": "Error al copiar",
     "create_failed": "Error al crear",

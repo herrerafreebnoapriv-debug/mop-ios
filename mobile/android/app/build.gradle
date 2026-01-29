@@ -64,10 +64,10 @@ android {
                 storeFile file("${keystorePath}/${keystoreProperties['storeFile']}")
                 storePassword keystoreProperties['storePassword']
                 
-                // 启用 V1 + V2 + V3 签名（测试版和生产版都需要）
+                // 启用 V1 + V2 签名（V3 由 AGP 自动启用；避免「解析包失败」/ 安装报损坏）
                 v1SigningEnabled true   // JAR 签名（兼容旧版 Android）
                 v2SigningEnabled true   // APK Signature Scheme v2（Android 7.0+）
-                // V3 签名默认启用（Android 9+）
+                // V3 签名在 AGP 7.0+ 中默认启用，无需显式配置
             }
         }
     }

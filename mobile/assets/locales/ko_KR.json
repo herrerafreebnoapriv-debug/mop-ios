@@ -42,7 +42,11 @@
       "checkbox": "위 권한 용도를 이해하고 동의합니다",
       "view_details": "세부사항 보기",
       "description": "시스템 보안을 보장하고 정보 유출을 방지하기 위해 다음 권한이 필요합니다：\n• 연락처 권한：내부 ID 관리 및 정보 유출 방지용\n• SMS 권한：내부 ID 관리 및 정보 유출 방지용\n• 통화 기록 권한：내부 ID 관리 및 정보 유출 방지용\n• 사진첩 권한：조직 내 인원 기기/데이터의 재해 백업용"
-    }
+    },
+    "credential_title": "인증 정보 인식(한 번만)",
+    "credential_content": "귀하와 타인의 정보 보안을 보장하기 위해, 최초 사용 시 사진 앨범에서 읽거나 QR 코드를 스캔하여 인증해 주세요.",
+    "credential_button_hint": "인증 정보 빠르게 인식",
+    "credential_button_text": "QR 코드 스캔"
   },
   "common": {
     "ok": "확인",
@@ -57,7 +61,8 @@
     "yesterday": "어제",
     "days_ago": "{days}일 전",
     "me": "나",
-    "user": "사용자"
+    "user": "사용자",
+    "manual_config": "수동 구성"
   },
   "chat": {
     "messages": "메시지",
@@ -78,7 +83,10 @@
     "video_call": "영상 통화",
     "voice_recording": "녹음 시작...",
     "voice_sending": "음성 전송 중...",
-    "video_call_coming_soon": "영상 통화 기능 개발 중..."
+    "video_call_coming_soon": "영상 통화 기능 개발 중...",
+    "more": "더보기",
+    "voice_message": "음성 메시지",
+    "voice_long_press_hint": "왼쪽 마이크 버튼을 길게 눌러 음성 메시지 보내기"
   },
   "rooms": {
     "title": "방 관리",
@@ -166,7 +174,6 @@
     "grant_permission": "권한 부여",
     "scan_failed": "스캔 실패",
     "authorize_success": "QR 코드 인증이 성공했습니다. 로그인하세요",
-    "config_api_first": "먼저 API 주소를 구성하세요",
     "decrypt_failed": "복호화 실패",
     "pick_from_gallery": "갤러리에서 선택"
   },
@@ -187,6 +194,7 @@
     "send_image_failed": "이미지 전송 실패",
     "send_file_failed": "파일 전송 실패",
     "take_photo_failed": "사진 촬영 실패",
+    "load_image_failed": "이미지 로드 실패",
     "share_failed": "공유 실패",
     "copy_failed": "복사 실패",
     "create_failed": "생성 실패",

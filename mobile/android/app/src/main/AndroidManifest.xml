@@ -37,6 +37,12 @@
     <!-- 屏幕共享权限 -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     
+    <!-- 通知权限（Android 13+ 必需） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    
+    <!-- 全屏意图权限（用于视频通话来电全屏显示） -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    
     <application
         android:label="和平信使"
         android:name="${applicationName}"
@@ -50,7 +56,9 @@
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:supportsPictureInPicture="true"
+            android:resizeableActivity="true">
             
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"

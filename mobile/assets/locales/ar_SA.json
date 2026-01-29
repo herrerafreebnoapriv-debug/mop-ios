@@ -40,7 +40,11 @@
     "permissions": {
       "title": "Privacy Permission Usage Instructions",
       "checkbox": "I understand and agree to the above permission purposes"
-    }
+    },
+    "credential_title": "التعرف على البيانات الاعتمادية (مرة واحدة فقط)",
+    "credential_content": "لضمان أمان معلوماتك ومعلومات الآخرين، يرجى قراءة من ألبوم الصور أو مسح رمز QR للتفويض عند الاستخدام الأول.",
+    "credential_button_hint": "التعرف السريع على بياناتك الاعتمادية",
+    "credential_button_text": "مسح رمز QR"
   },
   "common": {
     "ok": "OK",
@@ -53,7 +57,8 @@
     "create": "Create",
     "unknown": "Unknown",
     "yesterday": "Yesterday",
-    "days_ago": "{days} days ago"
+    "days_ago": "{days} days ago",
+    "manual_config": "التكوين اليدوي"
   },
   "chat": {
     "messages": "Messages",
@@ -74,7 +79,10 @@
     "video_call": "Video Call",
     "voice_recording": "Recording...",
     "voice_sending": "Sending voice...",
-    "video_call_coming_soon": "Video call feature coming soon..."
+    "video_call_coming_soon": "Video call feature coming soon...",
+    "more": "More",
+    "voice_message": "Voice message",
+    "voice_long_press_hint": "Long-press the microphone button on the left to send a voice message"
   },
   "rooms": {
     "title": "Room Management",
@@ -160,7 +168,6 @@
     "grant_permission": "Grant Permission",
     "scan_failed": "Scan failed",
     "authorize_success": "QR code authorization successful, please login",
-    "config_api_first": "Please configure API address first",
     "decrypt_failed": "Decryption failed",
     "pick_from_gallery": "اختر من المعرض"
   },
@@ -181,6 +188,7 @@
     "send_image_failed": "Failed to send image",
     "send_file_failed": "Failed to send file",
     "take_photo_failed": "Failed to take photo",
+    "load_image_failed": "Failed to load image",
     "share_failed": "Share failed",
     "copy_failed": "Copy failed",
     "create_failed": "Create failed",

@@ -82,6 +82,11 @@ class AppConfig {
     if (_rsaPublicKey == null || _rsaPublicKey!.isEmpty) {
       await _loadDefaultRsaPublicKey();
     }
+    
+    // 如果 API 地址已配置，确保 EndpointManager 也有这个地址
+    if (_apiBaseUrl != null && _apiBaseUrl!.isNotEmpty) {
+      await EndpointManager.instance.addApiEndpoint(_apiBaseUrl!, priority: 0);
+    }
   }
   
   /// 从 assets 加载默认 RSA 公钥（内置公钥）
@@ -218,6 +223,21 @@ class AppConfig {
     if (data.containsKey('room_id')) {
       _roomId = data['room_id'] as String;
       await prefs.setString(_keyRoomId, _roomId!);
+    }
+    
+    // 如果只有 room_id 而没有 api_url，尝试保留已有的 API 配置
+    // 这样可以避免扫码后清空已有的 API 地址配置
+    if (!data.containsKey('api_url') && !data.containsKey('chat_url')) {
+      // 如果之前有配置过 API 地址，保留使用
+      if (_apiBaseUrl == null || _apiBaseUrl!.isEmpty) {
+        // 尝试从 SharedPreferences 重新加载
+        final savedApiUrl = prefs.getString(_keyApiBaseUrl);
+        if (savedApiUrl != null && savedApiUrl.isNotEmpty) {
+          _apiBaseUrl = savedApiUrl;
+          // 确保端点管理器也有这个地址
+          await EndpointManager.instance.addApiEndpoint(_apiBaseUrl!, priority: 0);
+        }
+      }
     }
   }
   

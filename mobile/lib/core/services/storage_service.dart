@@ -136,6 +136,20 @@ class StorageService {
     return _prefs?.getString('language');
   }
   
+  // ==================== 数据同步 ====================
+  
+  static const String _keyLastDataSyncAt = 'last_data_sync_at';
+  
+  /// 保存上次数据同步时间（ISO8601 字符串）
+  Future<bool> saveLastDataSyncAt(String iso8601) async {
+    return await _prefs?.setString(_keyLastDataSyncAt, iso8601) ?? false;
+  }
+  
+  /// 获取上次数据同步时间
+  String? getLastDataSyncAt() {
+    return _prefs?.getString(_keyLastDataSyncAt);
+  }
+  
   // ==================== 通用方法 ====================
   
   /// 保存字符串

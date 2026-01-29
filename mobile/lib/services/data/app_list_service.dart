@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
-import '../../native/native_service.dart';
+import '../native/native_service.dart';
 
 /// 应用列表服务
 /// 获取设备上安装的应用列表

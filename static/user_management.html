@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#667eea">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>用户管理 - MOP</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=20260112">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #f5f7fa; min-height: 100vh; display: flex; }
+        .sidebar {
+            width: 147px;
+            min-width: 147px;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 0;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.08);
+        }
+        .sidebar-title { padding: 0 12px 12px; font-size: 12px; color: rgba(255,255,255,0.7); }
+        .sidebar-menu-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 12px; cursor: pointer; transition: background 0.2s;
+            color: white; text-decoration: none; font-size: 13px;
+        }
+        .sidebar-menu-item:hover { background: rgba(255,255,255,0.15); }
+        .sidebar-menu-item.active { background: rgba(255,255,255,0.25); font-weight: 600; }
+        .sidebar-menu-item-icon { font-size: 1em; }
+        .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        .main-header { background: white; padding: 16px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+        .main-title { font-size: 1.3em; color: #333; }
+        .main-body { flex: 1; padding: 20px; overflow-x: auto; }
+        .message { padding: 12px 20px; border-radius: 6px; margin-bottom: 16px; display: none; }
+        .message-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .message-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .message-info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); padding: 20px; }
+        .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-danger { background: #e74c3c; color: white; }
+        .btn-warning { background: #f39c12; color: white; }
+        .btn-success { background: #27ae60; color: white; }
+        .status-online { color: #27ae60; }
+        .status-offline { color: #999; }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: white; border-radius: 12px; padding: 24px; width: 90%; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+        .modal h3 { margin-bottom: 16px; color: #333; }
+        .modal .form-group { margin-bottom: 14px; }
+        .modal label { display: block; margin-bottom: 6px; font-size: 14px; color: #555; }
+        .modal input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .modal-actions { margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end; }
+        .modal-actions .btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; }
+        .btn-cancel { background: #e0e0e0; color: #333; }
+        .btn-confirm { background: #667eea; color: white; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-title">左侧菜单</div>
+        <a href="/static/dashboard.html" class="sidebar-menu-item"><span class="sidebar-menu-item-icon">👤</span>用户信息</a>
+        <a href="#" class="sidebar-menu-item" id="menu-change-pwd"><span class="sidebar-menu-item-icon">🔑</span>修改密码</a>
+        <a href="/static/devices.html" class="sidebar-menu-item"><span class="sidebar-menu-item-icon">📱</span>设备管理</a>
+        <a href="/static/user_management.html" class="sidebar-menu-item active"><span class="sidebar-menu-item-icon">👥</span>用户管理</a>
+        <a href="/static/invitation_management.html" class="sidebar-menu-item"><span class="sidebar-menu-item-icon">🎫</span>邀请码管理</a>
+        <a href="/static/qrcode_settings.html" class="sidebar-menu-item"><span class="sidebar-menu-item-icon">⚙️</span>扫码配置</a>
+    </aside>
+    <div class="main">
+        <header class="main-header"><h1 class="main-title">用户管理</h1></header>
+        <div class="main-body">
+            <div id="messages"></div>
+            <div class="card">
+                <div style="margin-bottom: 15px;">
+                    <input type="text" id="user-search" placeholder="搜索用户（手机号/用户名）" style="width:100%;max-width:320px;padding:10px;margin-bottom:10px;border:1px solid #ddd;border-radius:6px;">
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                        <button class="btn btn-primary" onclick="loadAllUsers()">刷新用户列表</button>
+                        <button class="btn btn-primary" id="btn-create-owner" onclick="showCreateRoomOwnerForm()" style="display:none">创建房主</button>
+                    </div>
+                </div>
+                <div id="users-list"><p style="color:#999;text-align:center;padding:20px">点击「刷新用户列表」加载</p></div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-overlay" id="modal-change-pwd">
+        <div class="modal">
+            <h3>修改密码</h3>
+            <div class="form-group"><label>旧密码</label><input type="password" id="pwd-old" placeholder="请输入旧密码"></div>
+            <div class="form-group"><label>新密码</label><input type="password" id="pwd-new" placeholder="至少6位"></div>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" onclick="closeChangePwdModal()">取消</button>
+                <button class="btn btn-confirm" onclick="submitChangePwd()">确定</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        function getApiBase() {
+            const h = window.location.hostname, p = window.location.protocol;
+            if (h === 'www.chat5202ol.xyz' || h === 'chat5202ol.xyz' || h === 'app.chat5202ol.xyz') return 'https://api.chat5202ol.xyz/api/v1';
+            if (h === 'api.chat5202ol.xyz') return p + '//' + h + '/api/v1';
+            return '/api/v1';
+        }
+        const API_BASE = getApiBase();
+        let currentUser = null;
+        function getToken() { return localStorage.getItem('access_token'); }
+        async function apiRequest(url, options) {
+            const token = getToken();
+            if (!token) { showMessage('未登录，请先登录', 'error'); setTimeout(() => { window.location.href = '/login'; }, 2000); throw new Error('未登录'); }
+            options.headers = options.headers || {};
+            options.headers['Authorization'] = 'Bearer ' + token;
+            if (options.body && !options.headers['Content-Type']) options.headers['Content-Type'] = 'application/json';
+            options.credentials = options.credentials || 'include';
+            const res = await fetch(url, options);
+            if (res.status === 401) { localStorage.removeItem('access_token'); localStorage.removeItem('refresh_token'); showMessage('登录已过期，请重新登录', 'error'); setTimeout(() => { window.location.href = '/login'; }, 2000); throw new Error('登录已过期'); }
+            return res;
+        }
+        function showMessage(text, type) {
+            const el = document.getElementById('messages');
+            const m = document.createElement('div');
+            m.className = 'message message-' + type;
+            m.textContent = text;
+            m.style.display = 'block';
+            el.appendChild(m);
+            setTimeout(() => { m.style.opacity = '0'; m.style.transition = 'opacity 0.3s'; setTimeout(() => m.remove(), 300); }, 5000);
+        }
+        async function loadUserInfo() {
+            try {
+                const token = getToken();
+                if (!token) { showMessage('未登录', 'error'); setTimeout(() => { window.location.href = '/login'; }, 2000); return; }
+                const res = await fetch(API_BASE + '/auth/me', { headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }, credentials: 'include' });
+                if (!res.ok) { if (res.status === 401) { localStorage.removeItem('access_token'); showMessage('登录已过期', 'error'); setTimeout(() => { window.location.href = '/login'; }, 2000); return; } throw new Error('获取用户信息失败'); }
+                currentUser = await res.json();
+                const isAdmin = currentUser && (currentUser.is_admin === true || currentUser.is_admin === 'true' || currentUser.role === 'super_admin');
+                const isSuper = currentUser && currentUser.role === 'super_admin';
+                if (!isAdmin) { showMessage('权限不足', 'error'); setTimeout(() => { window.location.href = '/static/dashboard.html'; }, 1500); return; }
+                const btn = document.getElementById('btn-create-owner');
+                if (btn) btn.style.display = isSuper ? 'inline-block' : 'none';
+            } catch (e) { console.error(e); showMessage('加载用户信息失败', 'error'); }
+        }
+        async function loadAllUsers() {
+            const isAdmin = currentUser && (currentUser.is_admin === true || currentUser.is_admin === 'true' || currentUser.role === 'super_admin');
+            if (!isAdmin) { showMessage('权限不足', 'error'); return; }
+            try {
+                const search = (document.getElementById('user-search') || {}).value || '';
+                const url = API_BASE + '/users/?limit=100' + (search ? '&search=' + encodeURIComponent(search) : '');
+                const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + getToken() } });
+                if (!res.ok) throw new Error('获取用户列表失败');
+                const data = await res.json();
+                const list = document.getElementById('users-list');
+                if (!data.users || !data.users.length) { list.innerHTML = '<p style="color:#999;text-align:center;padding:20px">暂无用户</p>'; return; }
+                const roleMap = { 'super_admin': '超级管理员', 'room_owner': '房主', 'user': '普通用户' };
+                list.innerHTML = '<div style="max-height:400px;overflow-y:auto">' + data.users.map(u => {
+                    const roleText = roleMap[u.role] || u.role || '普通用户';
+                    const isSelf = currentUser && currentUser.id === u.id;
+                    const isSuperUser = u.role === 'super_admin';
+                    const status = u.is_disabled ? '禁用' : '正常';
+                    const sc = u.is_disabled ? 'status-offline' : 'status-online';
+                    let actions = '';
+                    if (currentUser && currentUser.role === 'super_admin') {
+                        if (isSelf || isSuperUser) actions = '<button class="btn btn-primary" style="padding:6px 12px;font-size:12px" onclick="editUser(' + u.id + ')">修改</button>';
+                        else actions = '<button class="btn ' + (u.is_disabled ? 'btn-success' : 'btn-warning') + '" style="padding:6px 12px;font-size:12px" onclick="toggleUserStatus(' + u.id + ',' + !!u.is_disabled + ')">' + (u.is_disabled ? '开启' : '禁用') + '</button> <button class="btn btn-primary" style="padding:6px 12px;font-size:12px" onclick="editUser(' + u.id + ')">修改</button>';
+                    }
+                    return '<div style="padding:10px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center"><div style="flex:1"><div><strong>' + (u.nickname || u.username || u.phone) + '</strong> <span class="' + sc + '">' + status + '</span></div><div style="font-size:12px;color:#666;margin-top:5px">手机号: ' + u.phone + ' | 用户名: ' + (u.username || '未设置') + ' | 角色: ' + roleText + ' | ' + (u.is_online ? '在线' : '离线') + (u.is_admin ? ' | 管理员' : '') + '</div></div><div style="display:flex;gap:5px">' + actions + '</div></div>';
+                }).join('') + '</div><div style="margin-top:10px;text-align:center;color:#666;font-size:12px">共 ' + (data.total || 0) + ' 个用户</div>';
+            } catch (e) {
+                console.error('加载用户列表失败', e);
+                showMessage('加载用户列表失败: ' + e.message, 'error');
+                document.getElementById('users-list').innerHTML = '<p style="color:#e74c3c;text-align:center;padding:20px">加载失败，<a href="javascript:loadAllUsers()">重试</a></p>';
+            }
+        }
+        async function toggleUserStatus(userId, currentlyDisabled) {
+            if (!(currentUser && currentUser.role === 'super_admin')) { showMessage('权限不足', 'error'); return; }
+            if (currentUser && currentUser.id === userId) { showMessage('不能操作自己', 'error'); return; }
+            const action = currentlyDisabled ? '启用' : '禁用';
+            if (!confirm('确定要' + action + '该用户吗？')) return;
+            try {
+                const res = await fetch(API_BASE + '/users/' + userId, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+                    body: JSON.stringify({ is_disabled: !currentlyDisabled })
+                });
+                if (!res.ok) { const err = await res.json(); throw new Error(err.detail || action + '失败'); }
+                showMessage('已' + action, 'success');
+                loadAllUsers();
+            } catch (e) { showMessage(e.message || '操作失败', 'error'); }
+        }
+        async function editUser(userId) {
+            try {
+                const res = await fetch(API_BASE + '/users/' + userId, { headers: { 'Authorization': 'Bearer ' + getToken() } });
+                if (!res.ok) throw new Error('获取用户信息失败');
+                const user = await res.json();
+                const isCurrentUser = currentUser && currentUser.id === userId;
+                const newNick = prompt('修改昵称（留空不修改）:', user.nickname || '');
+                if (newNick === null) return;
+                const newUser = prompt('修改用户名（留空不修改）:', user.username || '');
+                if (newUser === null) return;
+                const updateData = {};
+                if (newNick !== '' && newNick !== user.nickname) updateData.nickname = newNick;
+                if (newUser !== '' && newUser !== user.username) updateData.username = newUser;
+                const chPwd = confirm('是否修改密码？');
+                if (chPwd) {
+                    const oldP = prompt('请输入旧密码：');
+                    if (oldP === null || oldP === '') { showMessage('修改密码必须提供旧密码', 'error'); return; }
+                    const newP = prompt('请输入新密码（至少6位）：');
+                    if (newP === null || newP === '') return;
+                    if (newP.length < 6) { showMessage('新密码至少6位', 'error'); return; }
+                    if (isCurrentUser) {
+                        const pr = await fetch(API_BASE + '/users/me/change-password', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+                            body: JSON.stringify({ old_password: oldP, new_password: newP })
+                        });
+                        if (!pr.ok) { const err = await pr.json(); throw new Error(err.detail || '修改密码失败'); }
+                    } else { updateData.password = newP; updateData.old_password = oldP; }
+                }
+                if (Object.keys(updateData).length === 0) { showMessage('没有需要修改的内容', 'info'); return; }
+                const ur = await fetch(API_BASE + '/users/' + userId, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() },
+                    body: JSON.stringify(updateData)
+                });
+                if (!ur.ok) { const err = await ur.json(); throw new Error(err.detail || '修改用户失败'); }
+                showMessage('修改成功', 'success');
+                loadAllUsers();
+                if (isCurrentUser) loadUserInfo();
+            } catch (e) { showMessage(e.message || '修改失败', 'error'); }
+        }
+        function showCreateRoomOwnerForm() {
+            const form = prompt('创建房主\n格式：手机号,用户名,密码,昵称,最大房间数(可选)\n例：13900000001,owner1,pass123,房主1,10');
+            if (!form) return;
+            const parts = form.split(',');
+            if (parts.length < 4) { showMessage('格式错误', 'error'); return; }
+            const [phone, username, password, nickname, maxRooms] = parts;
+            createRoomOwner({ phone: phone.trim(), username: username.trim(), password: password.trim(), nickname: nickname.trim(), max_rooms: maxRooms ? parseInt(maxRooms.trim()) : null, default_max_occupants: 3 });
+        }
+        async function createRoomOwner(data) {
+            try {
+                const res = await fetch(API_BASE + '/admin/room-owners', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (!res.ok) { const err = await res.json(); throw new Error(err.detail || '创建房主失败'); }
+                showMessage('房主创建成功', 'success');
+                loadAllUsers();
+            } catch (e) { showMessage(e.message || '创建失败', 'error'); }
+        }
+        document.getElementById('menu-change-pwd').addEventListener('click', function(e) { e.preventDefault(); document.getElementById('modal-change-pwd').classList.add('show'); document.getElementById('pwd-old').value = ''; document.getElementById('pwd-new').value = ''; });
+        function closeChangePwdModal() { document.getElementById('modal-change-pwd').classList.remove('show'); }
+        async function submitChangePwd() {
+            const oldP = document.getElementById('pwd-old').value, newP = document.getElementById('pwd-new').value;
+            if (!oldP || !newP) { showMessage('请填写旧密码和新密码', 'error'); return; }
+            if (newP.length < 6) { showMessage('新密码至少6位', 'error'); return; }
+            try {
+                const res = await apiRequest(API_BASE + '/users/me/change-password', { method: 'POST', body: JSON.stringify({ old_password: oldP, new_password: newP }) });
+                if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || '修改失败'); }
+                showMessage('密码已修改', 'success');
+                closeChangePwdModal();
+            } catch (e) { showMessage('修改密码失败: ' + (e.message || e), 'error'); }
+        }
+        document.getElementById('user-search').addEventListener('keypress', function(e) { if (e.key === 'Enter') loadAllUsers(); });
+        window.addEventListener('DOMContentLoaded', async () => {
+            if (!getToken()) { showMessage('未登录，正在跳转…', 'info'); setTimeout(() => { window.location.href = '/login'; }, 1500); return; }
+            await loadUserInfo();
+            loadAllUsers();
+        });
+    </script>
+</body>
+</html>

@@ -35,6 +35,8 @@ services:
     depends_on:
       - jitsi_prosody
       - jitsi_jicofo
+    logging:
+      driver: none
 
   # Prosody XMPP 服务器
   jitsi_prosody:
@@ -73,10 +75,12 @@ services:
       - JWT_ALLOW_EMPTY=${JITSI_JWT_ALLOW_EMPTY:-false}
       - JWT_AUTH_TYPE=${JITSI_JWT_AUTH_TYPE:-token}
       - JWT_TOKEN_AUTH_MODULE=${JITSI_JWT_TOKEN_AUTH_MODULE:-token_verification}
-      - LOG_LEVEL=${JITSI_LOG_LEVEL:-INFO}
+      - LOG_LEVEL=${JITSI_LOG_LEVEL:-ERROR}
       - TZ=Asia/Shanghai
     networks:
       - jitsi_meet
+    logging:
+      driver: none
 
   # Jitsi Videobridge
   jitsi_jvb:
@@ -99,16 +103,18 @@ services:
       - JVB_PORT=${JITSI_JVB_PORT:-10000}
       - JVB_TCP_HARVESTER_DISABLED=${JITSI_JVB_TCP_HARVESTER_DISABLED:-false}
       - JVB_TCP_PORT=${JITSI_JVB_TCP_PORT:-4443}
-      - JVB_STUN_SERVERS=${JITSI_JVB_STUN_SERVERS:-meet-jit-si-turnrelay.jitsi.net:443}
+      - JVB_STUN_SERVERS=${JITSI_JVB_STUN_SERVERS:-}
       - JVB_ENABLE_APIS=${JITSI_JVB_ENABLE_APIS:-rest,xmpp}
       - JVB_WS_DOMAIN=${JITSI_JVB_WS_DOMAIN:-}
       - JVB_WS_SERVER_ID=${JITSI_JVB_WS_SERVER_ID:-}
-      - LOG_LEVEL=${JITSI_LOG_LEVEL:-INFO}
+      - LOG_LEVEL=${JITSI_LOG_LEVEL:-ERROR}
       - TZ=Asia/Shanghai
     networks:
       - jitsi_meet
     depends_on:
       - jitsi_prosody
+    logging:
+      driver: none
 
   # Jitsi Conference Focus
   jitsi_jicofo:
@@ -133,11 +139,14 @@ services:
       - HOST=${JITSI_XMPP_DOMAIN:-meet.jitsi}
       - XMPP_MUC_DOMAIN=${JITSI_XMPP_MUC_DOMAIN:-muc.meet.jitsi}
       - ENABLE_SCTP=${JITSI_ENABLE_SCTP:-false}
+      - LOG_LEVEL=${JITSI_LOG_LEVEL:-ERROR}
       - TZ=Asia/Shanghai
     networks:
       - jitsi_meet
     depends_on:
       - jitsi_prosody
+    logging:
+      driver: none
 
 networks:
   jitsi_meet:

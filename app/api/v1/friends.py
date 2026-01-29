@@ -83,22 +83,51 @@ async def search_users(
     
     # 构建搜索条件：仅支持手机号或用户名精确匹配（大小写不敏感）
     # 移除昵称搜索和模糊搜索，保护用户隐私
-    # 使用 lower() 进行大小写不敏感匹配，但仍然是精确匹配（不是模糊搜索）
-    keyword_lower = keyword.lower().strip()
-    conditions = [
-        or_(
-            User.phone == keyword,  # 手机号精确匹配（保持原样，手机号通常不区分大小写）
-            func.lower(User.username) == keyword_lower  # 用户名精确匹配（大小写不敏感）
-        ),
+    # 清理关键词：去除空格和特殊字符（用于手机号匹配）
+    keyword_cleaned = keyword.strip().replace(' ', '').replace('-', '').replace('+', '').replace('(', '').replace(')', '')
+    keyword_lower = keyword.lower().strip().replace(' ', '')
+    
+    # 添加调试日志
+    logger.info(f"搜索用户 - 关键词: '{keyword}', 清理后手机号: '{keyword_cleaned}', 清理后用户名: '{keyword_lower}'")
+    
+    # 使用 Python 层面的精确匹配，确保可靠性
+    # 先查询所有非禁用、非自己的用户（如果用户名搜索，则只查询用户名不为空的）
+    base_conditions = [
         User.id != current_user.id,  # 排除自己
         User.is_disabled == False  # 排除禁用的用户
     ]
     
-    # 查询用户（精确匹配，最多返回1个结果）
+    # 查询符合条件的用户（不限制数量，确保不会漏掉）
     result = await db.execute(
-        select(User).where(and_(*conditions)).limit(1)
+        select(User).where(and_(*base_conditions))
     )
-    users = result.scalars().all()
+    all_users = result.scalars().all()
+    
+    logger.info(f"查询到 {len(all_users)} 个符合条件的用户，开始精确匹配...")
+    
+    # 在 Python 层面进行精确匹配
+    users = []
+    for user in all_users:
+        # 清理数据库中的手机号
+        phone_cleaned = user.phone.replace(' ', '').replace('-', '').replace('+', '').replace('(', '').replace(')', '')
+        # 清理数据库中的用户名（如果存在）
+        username_cleaned = (user.username or '').lower().strip().replace(' ', '')
+        
+        # 精确匹配手机号或用户名
+        phone_match = phone_cleaned == keyword_cleaned
+        username_match = username_cleaned and username_cleaned == keyword_lower
+        
+        if phone_match or username_match:
+            logger.info(f"✓ 找到匹配用户: ID={user.id}, 手机号={user.phone} (清理后: {phone_cleaned}), 用户名={user.username} (清理后: {username_cleaned})")
+            logger.info(f"  - 手机号匹配: {phone_match}, 用户名匹配: {username_match}")
+            users.append(user)
+            # 找到精确匹配后，只返回第一个
+            break
+        else:
+            logger.debug(f"✗ 不匹配: ID={user.id}, 手机号={user.phone} (清理后: {phone_cleaned}), 用户名={user.username} (清理后: {username_cleaned})")
+    
+    if not users:
+        logger.warning(f"✗ 未找到匹配用户 - 关键词: '{keyword}' (清理后: 手机号='{keyword_cleaned}', 用户名='{keyword_lower}')")
     
     # 转换为响应模型
     user_list = []
@@ -290,15 +319,23 @@ async def get_friends(
     check_user_not_disabled(current_user, lang)
     
     # 构建查询条件
-    conditions = [
-        or_(
-            Friendship.user_id == current_user.id,
-            Friendship.friend_id == current_user.id
-        )
-    ]
-    
-    if status_filter:
-        conditions.append(Friendship.status == status_filter)
+    if status_filter == 'pending':
+        # pending状态：只返回对方发送给我的请求（可以接受/拒绝的）
+        # 不包括我发送给别人的请求
+        conditions = [
+            Friendship.friend_id == current_user.id,  # 我是接收者
+            Friendship.status == 'pending'
+        ]
+    else:
+        # 其他状态：返回所有相关的好友关系
+        conditions = [
+            or_(
+                Friendship.user_id == current_user.id,
+                Friendship.friend_id == current_user.id
+            )
+        ]
+        if status_filter:
+            conditions.append(Friendship.status == status_filter)
     
     # 查询好友关系
     result = await db.execute(
