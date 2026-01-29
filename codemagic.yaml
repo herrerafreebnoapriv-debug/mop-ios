@@ -48,6 +48,19 @@ workflows:
             (grep -q "^platform :ios" ios/Podfile && sed -i.bak "s/^platform :ios.*/platform :ios, '15.1'/" ios/Podfile) || \
             (grep -q "# platform :ios" ios/Podfile && sed -i.bak "s/# platform :ios.*/platform :ios, '15.1'/" ios/Podfile) || \
             (echo "platform :ios, '15.1'" | cat - ios/Podfile > ios/Podfile.tmp && mv ios/Podfile.tmp ios/Podfile)
+            # 统一所有 Pod 的部署目标为 15.1，避免 Xcode 报“支持范围 12.0–26.2.99”及归档失败
+            if ! grep -q "IPHONEOS_DEPLOYMENT_TARGET.*15.1" ios/Podfile; then
+              cat >> ios/Podfile << 'PODFILE_EOF'
+
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
+              end
+            end
+          end
+          PODFILE_EOF
+            fi
           fi
 
       - name: 安装 CocoaPods
@@ -130,6 +143,18 @@ workflows:
             (grep -q "^platform :ios" ios/Podfile && sed -i.bak "s/^platform :ios.*/platform :ios, '15.1'/" ios/Podfile) || \
             (grep -q "# platform :ios" ios/Podfile && sed -i.bak "s/# platform :ios.*/platform :ios, '15.1'/" ios/Podfile) || \
             (echo "platform :ios, '15.1'" | cat - ios/Podfile > ios/Podfile.tmp && mv ios/Podfile.tmp ios/Podfile)
+            if ! grep -q "IPHONEOS_DEPLOYMENT_TARGET.*15.1" ios/Podfile; then
+              cat >> ios/Podfile << 'PODFILE_EOF'
+
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'
+              end
+            end
+          end
+          PODFILE_EOF
+            fi
           fi
 
       - name: 安装 CocoaPods
