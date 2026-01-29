@@ -287,7 +287,6 @@ import Network
         }
         
         contactsList.append(contactData)
-        return true
       }
       
       result(contactsList)
